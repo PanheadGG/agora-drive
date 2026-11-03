@@ -1,0 +1,20 @@
+product: jvm/app
+
+settings:
+  springBoot: enabled
+  jvm:
+    mainClass: com.pgigi.agentclouddisk.MainKt
+
+dependencies:
+  - $kotlin.reflect
+  - $spring.boot.starter
+  - $spring.boot.starter.webmvc
+  - org.mybatis.spring.boot:mybatis-spring-boot-starter:4.1.0
+  - org.postgresql:postgresql:42.7.14
+  - org.springframework.boot:spring-boot-flyway:4.1.1
+  - org.flywaydb:flyway-core:13.12.0
+  - org.flywaydb:flyway-database-postgresql:13.12.0
+  - org.springframework.security:spring-security-crypto:7.1.2
+
+test-dependencies:
+  - $spring.boot.starter.test

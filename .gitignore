@@ -1,0 +1,16 @@
+# 构建产物
+backend/build/
+backend/resources/static/
+frontend/dist/
+frontend/node_modules/
+
+# 运行时数据
+backend/run.log
+backend/data/
+
+# IDE / OS
+.idea/
+*.iml
+*.log
+Thumbs.db
+.DS_Store
