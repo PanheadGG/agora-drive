@@ -1,6 +1,9 @@
 package com.pgigi.agentclouddisk.service
 
 import com.pgigi.agentclouddisk.common.ApiException
+import com.pgigi.agentclouddisk.mapper.BountyMapper
+import com.pgigi.agentclouddisk.mapper.ScanResultMapper
+import com.pgigi.agentclouddisk.mapper.ScanTaskMapper
 import com.pgigi.agentclouddisk.mapper.UploadTaskMapper
 import com.pgigi.agentclouddisk.mapper.UserFileMapper
 import com.pgigi.agentclouddisk.mapper.UserMapper
@@ -13,6 +16,9 @@ class AdminService(
     private val userMapper: UserMapper,
     private val fileMapper: UserFileMapper,
     private val taskMapper: UploadTaskMapper,
+    private val bountyMapper: BountyMapper,
+    private val scanTaskMapper: ScanTaskMapper,
+    private val scanResultMapper: ScanResultMapper,
 ) {
 
     fun stats(): AdminStatsDto = AdminStatsDto(
@@ -21,6 +27,10 @@ class AdminService(
         folderCount = fileMapper.countByType(1, 0),
         totalUsed = userMapper.sumUsedSize(),
         recycleCount = fileMapper.countRecycle(),
+        bountyCount = bountyMapper.countAll(),
+        activeBountyCount = bountyMapper.countActive(),
+        scanTaskCount = scanTaskMapper.countByStatus(2) + scanTaskMapper.countByStatus(1),
+        pendingReviewCount = scanResultMapper.countByReview(0),
     )
 
     fun users(keyword: String): List<UserDto> = userMapper.list(keyword.trim()).map { UserDto.of(it) }

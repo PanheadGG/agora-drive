@@ -1,13 +1,15 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { auth } from '../store/auth'
 import { disk, refreshQuota } from '../store/disk'
 import { theme, toggleTheme } from '../store/theme'
 import { formatBytes, quotaPercent } from '../utils/format'
 
 const router = useRouter()
+const route = useRoute()
 const percent = computed(() => quotaPercent(disk.quota))
+const current = computed(() => route.name)
 const initial = computed(() => (auth.user?.username || '?').slice(0, 1).toUpperCase())
 
 onMounted(() => {
@@ -31,6 +33,12 @@ function onUserCommand(command) {
         <span class="brand-mark">◍</span>
         <span class="brand-name">Agent 云盘</span>
       </div>
+
+      <nav class="topbar-nav">
+        <a :class="['nav-link', { active: current === 'drive' || current === 'recycle' }]" @click="router.push('/')">我的文件</a>
+        <a :class="['nav-link', { active: current === 'bounties' }]" @click="router.push('/bounties')">悬赏广场</a>
+        <a :class="['nav-link', { active: current === 'agent' }]" @click="router.push('/agent')">智能匹配 Agent</a>
+      </nav>
 
       <el-input v-model="disk.keyword" class="topbar-search" placeholder="搜索当前文件夹" clearable>
         <template #prefix>
@@ -59,6 +67,9 @@ function onUserCommand(command) {
           <div class="user-chip">
             <span class="avatar">{{ initial }}</span>
             <span class="user-name">{{ auth.user?.username }}</span>
+            <el-tag size="small" effect="plain" :type="auth.isAdmin ? 'danger' : auth.isEnterprise ? 'warning' : 'info'">
+              {{ auth.roleLabel }}
+            </el-tag>
           </div>
           <template #dropdown>
             <el-dropdown-menu>

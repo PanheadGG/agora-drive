@@ -33,6 +33,21 @@ export const api = {
   },
   mergeChunk: (data) => http.post('/upload/chunk/merge', data),
 
+  bountyList: (status) => http.get('/bounty', { params: { status } }),
+  bountyCreate: (data) => http.post('/bounty', data),
+  bountyDetail: (id) => http.get('/bounty/' + id),
+  bountyStatus: (id, status) => http.put('/bounty/' + id + '/status?status=' + status),
+
+  agentFolders: () => http.get('/agent/folders'),
+  agentScan: (data) => http.post('/agent/scan', data),
+  agentTasks: () => http.get('/agent/tasks'),
+  agentTask: (id) => http.get('/agent/tasks/' + id),
+  agentReview: (id, data) => http.put('/agent/results/' + id + '/review', data),
+
+  adminBounties: (status) => http.get('/admin/bounties', { params: { status } }),
+  adminBountyStatus: (id, status) => http.put('/admin/bounties/' + id + '/status?status=' + status),
+  adminScanTasks: (bountyId) => http.get('/admin/scan-tasks', { params: { bountyId } }),
+
   adminStats: () => http.get('/admin/stats'),
   adminUsers: (keyword = '') => http.get('/admin/users', { params: { keyword } }),
   adminStatus: (id, status) => http.put(`/admin/users/${id}/status?status=${status}`),

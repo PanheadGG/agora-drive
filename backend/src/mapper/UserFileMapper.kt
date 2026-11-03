@@ -1,6 +1,7 @@
 package com.pgigi.agentclouddisk.mapper
 
 import com.pgigi.agentclouddisk.model.FileRow
+import com.pgigi.agentclouddisk.model.FolderRow
 import org.apache.ibatis.annotations.Delete
 import org.apache.ibatis.annotations.Mapper
 import org.apache.ibatis.annotations.Param
@@ -132,6 +133,30 @@ interface UserFileMapper {
 
     @Select("""SELECT COUNT(*) FROM user_file WHERE is_folder = #{isFolder} AND is_recycle = #{isRecycle}""")
     fun countByType(@Param("isFolder") isFolder: Int, @Param("isRecycle") isRecycle: Int): Long
+
+    @Select(
+        """WITH RECURSIVE sub AS (
+               SELECT id, parent_id, meta_id, file_name, is_folder
+               FROM user_file WHERE id = #{rootId} AND user_id = #{userId} AND is_recycle = 0
+               UNION ALL
+               SELECT c.id, c.parent_id, c.meta_id, c.file_name, c.is_folder
+               FROM user_file c JOIN sub s ON c.parent_id = s.id
+               WHERE c.is_recycle = 0
+           )
+           SELECT s.id, s.parent_id, s.meta_id, s.file_name, s.is_folder,
+                  COALESCE(m.total_size, 0) AS total_size, m.sha256
+           FROM sub s LEFT JOIN file_meta m ON m.id = s.meta_id"""
+    )
+    fun expandRows(@Param("rootId") rootId: Long, @Param("userId") userId: Long): List<FileRow>
+
+    @Select(
+        """SELECT uf.id, uf.parent_id, uf.file_name,
+                  (SELECT COUNT(*) FROM user_file c WHERE c.parent_id = uf.id AND c.is_recycle = 0) AS child_count
+           FROM user_file uf
+           WHERE uf.user_id = #{userId} AND uf.is_folder = 1 AND uf.is_recycle = 0
+           ORDER BY uf.parent_id NULLS FIRST, uf.file_name"""
+    )
+    fun listFolders(@Param("userId") userId: Long): List<FolderRow>
 
     @Select("""SELECT COUNT(*) FROM user_file WHERE is_recycle = 1""")
     fun countRecycle(): Long

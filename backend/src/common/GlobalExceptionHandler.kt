@@ -4,8 +4,11 @@ import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.multipart.MaxUploadSizeExceededException
 
 @RestControllerAdvice
@@ -27,6 +30,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException::class)
     fun handleTooLarge(e: MaxUploadSizeExceededException): ResponseEntity<ApiResult<Any?>> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResult.fail(400, "文件超过单次上传上限"))
+
+    @ExceptionHandler(HttpMessageNotReadableException::class, MissingServletRequestParameterException::class, MethodArgumentTypeMismatchException::class)
+    fun handleBadRequest(e: Exception): ResponseEntity<ApiResult<Any?>> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResult.fail(400, "请求参数不合法：" + e.message))
 
     @ExceptionHandler(Exception::class)
     fun handleOther(e: Exception): ResponseEntity<ApiResult<Any?>> {

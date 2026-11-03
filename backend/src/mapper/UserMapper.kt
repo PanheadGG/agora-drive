@@ -53,6 +53,9 @@ interface UserMapper {
     @Update("""UPDATE "user" SET status = #{status}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}""")
     fun updateStatus(@Param("id") id: Long, @Param("status") status: Int): Int
 
+    @Update("""UPDATE "user" SET role = #{role}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}""")
+    fun updateRole(@Param("id") id: Long, @Param("role") role: Int): Int
+
     @Update("""UPDATE "user" SET total_quota = #{quota}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}""")
     fun updateQuota(@Param("id") id: Long, @Param("quota") quota: Long): Int
 

@@ -71,6 +71,10 @@ data class AdminStatsDto(
     val folderCount: Long,
     val totalUsed: Long,
     val recycleCount: Long,
+    val bountyCount: Long = 0,
+    val activeBountyCount: Long = 0,
+    val scanTaskCount: Long = 0,
+    val pendingReviewCount: Long = 0,
 )
 
 data class FolderRequest(val parentId: Long? = null, val name: String = "")

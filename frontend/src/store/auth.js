@@ -17,6 +17,14 @@ export const auth = reactive({
   get isAdmin() {
     return this.user?.role === 1
   },
+  get isEnterprise() {
+    return this.user?.role === 2
+  },
+  get roleLabel() {
+    if (this.user?.role === 1) return '管理员'
+    if (this.user?.role === 2) return '企业需求方'
+    return '个人用户'
+  },
   setSession(token, user) {
     this.token = token
     this.user = user
