@@ -13,6 +13,8 @@ data class BountyDto(
     val scanTaskCount: Long,
     val highMatchCount: Long,
     val mine: Boolean,
+    val structuredBy: String = "rule",
+    val structuredModel: String? = null,
 )
 
 data class BountyRequest(val title: String = "", val rawDesc: String = "")
@@ -36,6 +38,8 @@ data class ScanResultDto(
     val riskDesc: String?,
     val userReview: Int,
     val reviewNote: String?,
+    val judgeSource: String = "rule",
+    val judgeReason: String? = null,
 )
 
 data class ScanTaskDetailDto(
@@ -58,6 +62,9 @@ data class ScanTaskDetailDto(
     val recommendations: List<ScanResultDto>,
     val highRisk: List<ScanResultDto>,
     val reviewTips: List<String>,
+    val llmModel: String? = null,
+    val llmUsed: Boolean = false,
+    val llmJudgedCount: Int = 0,
 )
 
 data class ScanTaskRowDto(

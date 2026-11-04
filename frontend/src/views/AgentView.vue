@@ -15,6 +15,14 @@ const treeRef = ref(null)
 const scanning = ref(false)
 const loading = ref(false)
 const report = ref(null)
+const llmStatus = ref({ llm: { available: false }, ocr: { available: null } })
+const llmHint = computed(() => {
+  const llm = llmStatus.value.llm || {}
+  const ocr = llmStatus.value.ocr || {}
+  const llmText = llm.available ? 'DeepSeek 判定已启用（' + (llm.model || 'deepseek-chat') + '）' : '未配置 DeepSeek API Key，本次使用本地规则判定'
+  const ocrText = ocr.available === false ? '；图片 OCR 不可用' : '；图片走本机 OCR'
+  return llmText + ocrText
+})
 
 const treeData = computed(() => {
   const nodes = new Map()
@@ -39,14 +47,16 @@ const LEVEL_TYPE = { 3: 'success', 2: 'primary', 1: 'info', 0: 'info' }
 async function load() {
   loading.value = true
   try {
-    const [bountyList, folderList, taskList] = await Promise.all([
+    const [bountyList, folderList, taskList, status] = await Promise.all([
       api.bountyList(1),
       api.agentFolders(),
       api.agentTasks(),
+      api.agentLlmStatus(),
     ])
     bounties.value = bountyList
     folders.value = folderList
     tasks.value = taskList
+    llmStatus.value = status
     const fromQuery = Number(route.query.bountyId || 0)
     if (fromQuery && bountyList.some((item) => item.id === fromQuery)) selectedBounty.value = fromQuery
     else if (bountyList.length) selectedBounty.value = bountyList[0].id
@@ -95,6 +105,7 @@ onMounted(load)
       <div>
         <h2>智能匹配 Agent</h2>
         <p class="page-sub">先勾选授权扫描范围，Agent 会逐个打开文件解析真实内容，输出带证据与风险提示的推荐清单。</p>
+        <p class="llm-hint">{{ llmHint }}</p>
       </div>
       <div class="toolbar">
         <el-button :icon="Refresh" @click="load">刷新</el-button>
@@ -155,6 +166,10 @@ onMounted(load)
               <span class="panel-note">任务 #{{ report.id }} · {{ report.createdAt }}</span>
             </div>
 
+            <p class="llm-hint" style="margin-top: 8px">
+              {{ report.llmUsed ? ('本次 ' + report.llmJudgedCount + ' 个文件由 DeepSeek 语义判定（' + (report.llmModel || 'deepseek-chat') + '）') : '本次使用本地规则判定' }}
+            </p>
+
             <div class="stat-row">
               <div class="stat-item"><span class="stat-num">{{ report.totalFileCount }}</span><span>授权范围文件</span></div>
               <div class="stat-item"><span class="stat-num">{{ report.successParseCount }}</span><span>成功解析</span></div>
@@ -182,6 +197,13 @@ onMounted(load)
               <el-table-column prop="fileName" label="文件" min-width="180" />
               <el-table-column prop="parseMethod" label="解析方式" width="140" />
               <el-table-column prop="parsedSummary" label="解析出的内容要点" min-width="300" show-overflow-tooltip />
+              <el-table-column label="判定来源" width="110">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.judgeSource === 'llm' ? 'success' : 'info'" effect="plain">
+                    {{ row.judgeSource === 'llm' ? 'DeepSeek' : '本地规则' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
             </el-table>
           </el-card>
 
@@ -193,6 +215,9 @@ onMounted(load)
                 <el-tag size="small" :type="LEVEL_TYPE[item.matchLevel]" effect="dark">{{ item.matchLabel }}</el-tag>
                 <span class="rec-name">{{ item.fileName }}</span>
                 <span class="rec-size">{{ formatBytes(item.fileSize) }}</span>
+                <el-tag size="small" :type="item.judgeSource === 'llm' ? 'success' : 'info'" effect="plain">
+                  {{ item.judgeSource === 'llm' ? 'DeepSeek' : '本地规则' }}
+                </el-tag>
                 <div class="rec-actions">
                   <el-button size="small" :type="item.userReview === 1 ? 'success' : 'default'" @click="review(item, 1)">确认可用</el-button>
                   <el-button size="small" text @click="review(item, 2)">驳回</el-button>

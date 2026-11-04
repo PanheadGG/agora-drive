@@ -30,6 +30,15 @@ app:
     temp-root: ${APP_TEMP_ROOT:./data/temp}
   upload:
     chunk-size: 5242880
+  deepseek:
+    enabled: ${DEEPSEEK_ENABLED:true}
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-chat}
+    timeout-seconds: 60
+  ocr:
+    enabled: ${APP_OCR_ENABLED:true}
+    timeout-seconds: 90
 
 logging:
   level:

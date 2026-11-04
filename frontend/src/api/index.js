@@ -39,6 +39,7 @@ export const api = {
   bountyStatus: (id, status) => http.put('/bounty/' + id + '/status?status=' + status),
 
   agentFolders: () => http.get('/agent/folders'),
+  agentLlmStatus: () => http.get('/agent/llm-status'),
   agentScan: (data) => http.post('/agent/scan', data),
   agentTasks: () => http.get('/agent/tasks'),
   agentTask: (id) => http.get('/agent/tasks/' + id),

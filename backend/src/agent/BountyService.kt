@@ -15,6 +15,7 @@ class BountyService(
     private val bountyMapper: BountyMapper,
     private val scanTaskMapper: ScanTaskMapper,
     private val scanResultMapper: ScanResultMapper,
+    private val analyzer: LlmBountyAnalyzer,
 ) {
 
     fun list(userId: Long, role: Int, status: Int? = null): List<BountyDto> {
@@ -33,8 +34,16 @@ class BountyService(
         if (title.isEmpty()) throw ApiException(400, "悬赏标题不能为空")
         if (rawDesc.length < 10) throw ApiException(400, "悬赏描述太短，至少 10 个字")
 
-        val requirement = BountyStructureParser.parse(title + " " + rawDesc)
-        val id = bountyMapper.insert(userId, title, rawDesc, requirement.toJson(), 1)
+        val structured = analyzer.analyze(title, rawDesc)
+        val id = bountyMapper.insert(
+            userId,
+            title,
+            rawDesc,
+            structured.requirement.toJson(),
+            1,
+            structured.source,
+            structured.model,
+        )
         return toDto(bountyMapper.findById(id) ?: throw ApiException(500, "悬赏保存失败"), userId)
     }
 
@@ -64,6 +73,8 @@ class BountyService(
             scanTaskCount = scanTaskMapper.countByBounty(id),
             highMatchCount = scanResultMapper.countHighMatchByBounty(id),
             mine = bounty.publisherUserId == currentUserId,
+            structuredBy = bounty.structuredBy,
+            structuredModel = bounty.structuredModel,
         )
     }
 

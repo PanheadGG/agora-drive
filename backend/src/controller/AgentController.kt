@@ -25,6 +25,10 @@ class AgentController(private val agentScanService: AgentScanService) {
     @GetMapping("/folders")
     fun folders(): ApiResult<List<FolderNodeDto>> = ApiResult.ok(agentScanService.folders(CurrentUser.id()))
 
+    /** DeepSeek / OCR 能力状态，前端用于提示当前是 LLM 判定还是本地规则 */
+    @GetMapping("/llm-status")
+    fun llmStatus(): ApiResult<Map<String, Any?>> = ApiResult.ok(agentScanService.llmStatus())
+
     @PostMapping("/scan")
     fun scan(@RequestBody body: ScanRequest): ApiResult<ScanTaskDetailDto> =
         ApiResult.ok(agentScanService.startScan(CurrentUser.id(), body))

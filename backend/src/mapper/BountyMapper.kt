@@ -10,8 +10,8 @@ import org.apache.ibatis.annotations.Update
 interface BountyMapper {
 
     @Select(
-        """INSERT INTO data_bounty (publisher_user_id, title, raw_desc, structured_json, status)
-           VALUES (#{publisherUserId}, #{title}, #{rawDesc}, #{structuredJson}::jsonb, #{status})
+        """INSERT INTO data_bounty (publisher_user_id, title, raw_desc, structured_json, status, structured_by, structured_model)
+           VALUES (#{publisherUserId}, #{title}, #{rawDesc}, #{structuredJson}::jsonb, #{status}, #{structuredBy,jdbcType=VARCHAR}, #{structuredModel,jdbcType=VARCHAR})
            RETURNING id"""
     )
     fun insert(
@@ -20,19 +20,24 @@ interface BountyMapper {
         @Param("rawDesc") rawDesc: String,
         @Param("structuredJson") structuredJson: String,
         @Param("status") status: Int,
+        @Param("structuredBy") structuredBy: String = "rule",
+        @Param("structuredModel") structuredModel: String? = null,
     ): Long
 
     @Select(
         """SELECT b.id, b.publisher_user_id, b.title, b.raw_desc, b.structured_json::text AS structured_json, b.status,
-                  to_char(b.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at, u.username AS publisher_name
+                  to_char(b.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at, u.username AS publisher_name,
+                  b.structured_by, b.structured_model
            FROM data_bounty b JOIN "user" u ON u.id = b.publisher_user_id
            WHERE b.id = #{id}"""
     )
     fun findById(@Param("id") id: Long): Bounty?
 
+
     @Select(
         """SELECT b.id, b.publisher_user_id, b.title, b.raw_desc, b.structured_json::text AS structured_json, b.status,
-                  to_char(b.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at, u.username AS publisher_name
+                  to_char(b.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at, u.username AS publisher_name,
+                  b.structured_by, b.structured_model
            FROM data_bounty b JOIN "user" u ON u.id = b.publisher_user_id
            WHERE (#{status,jdbcType=INTEGER} IS NULL OR b.status = #{status,jdbcType=INTEGER})
            ORDER BY b.status ASC, b.id DESC"""
@@ -41,7 +46,8 @@ interface BountyMapper {
 
     @Select(
         """SELECT b.id, b.publisher_user_id, b.title, b.raw_desc, b.structured_json::text AS structured_json, b.status,
-                  to_char(b.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at, u.username AS publisher_name
+                  to_char(b.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at, u.username AS publisher_name,
+                  b.structured_by, b.structured_model
            FROM data_bounty b JOIN "user" u ON u.id = b.publisher_user_id
            WHERE b.publisher_user_id = #{userId}
            ORDER BY b.id DESC"""

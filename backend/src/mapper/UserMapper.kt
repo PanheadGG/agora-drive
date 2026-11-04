@@ -50,6 +50,9 @@ interface UserMapper {
     )
     fun list(@Param("keyword") keyword: String): List<User>
 
+    @Update("""UPDATE "user" SET used_size = #{usedSize}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}""")
+    fun resetUsedSize(@Param("id") id: Long, @Param("usedSize") usedSize: Long): Int
+
     @Update("""UPDATE "user" SET status = #{status}, updated_at = CURRENT_TIMESTAMP WHERE id = #{id}""")
     fun updateStatus(@Param("id") id: Long, @Param("status") status: Int): Int
 

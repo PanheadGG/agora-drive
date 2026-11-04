@@ -123,6 +123,9 @@ onMounted(load)
         <div class="chip-row">
           <el-tag size="small" effect="dark" type="primary">{{ structured(bounty).domainLabel || '通用资料' }}</el-tag>
           <el-tag v-for="item in formatsOf(bounty)" :key="item" size="small" effect="plain">{{ item }}</el-tag>
+          <el-tag size="small" :type="bounty.structuredBy === 'llm' ? 'success' : 'info'" effect="plain">
+            {{ bounty.structuredBy === 'llm' ? 'DeepSeek 解析' : '规则解析' }}
+          </el-tag>
         </div>
 
         <p class="bounty-desc">{{ bounty.rawDesc }}</p>

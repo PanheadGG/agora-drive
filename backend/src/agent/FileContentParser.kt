@@ -8,10 +8,13 @@ import java.util.zip.ZipFile
 
 /**
  * 真实内容解析：只用文件本身的内容判定，不看文件名。
- * Demo 支持 文本类 / docx / xlsx；图片 OCR、PDF、压缩包受环境限制，如实标记为未解析。
+ * 文本/docx/xlsx 抽正文，PDF 抽文本，图片走 Windows OCR，压缩包受控解包；都不行就如实标记未解析。
  */
 @Service
-class FileContentParser(private val storage: StorageService) {
+class FileContentParser(
+    private val storage: StorageService,
+    private val ocr: OcrService,
+) {
 
     data class ParsedFile(
         val ok: Boolean,
@@ -33,17 +36,16 @@ class FileContentParser(private val storage: StorageService) {
                 in TEXT_EXTS -> parseText(path)
                 "docx" -> parseDocx(path)
                 "xlsx" -> parseXlsx(path)
-                in IMAGE_EXTS -> fail("图片需 OCR/视觉识别，服务端 Demo 未内置识别引擎，仅登记元信息，不参与内容判定")
-                "pdf" -> fail("PDF 文本抽取未内置（Demo 限制），跳过")
-                "zip", "rar", "7z" -> fail("压缩包不做受控解包（Demo 限制），跳过")
-                else -> fail("暂不支持解析该格式（.$ext）")
+                "pdf" -> parsePdf(path)
+                "zip" -> parseZip(path)
+                in IMAGE_EXTS -> parseImage(path)
+                else -> fail("暂不支持解析该格式（." + ext + "）")
             }
         }.getOrElse { fail("解析异常：" + (it.message ?: it.javaClass.simpleName)) }
     }
 
     private fun parseText(path: Path): ParsedFile {
-        val bytes = Files.readAllBytes(path)
-        val text = String(bytes, Charsets.UTF_8).replace("\u0000", "")
+        val text = String(Files.readAllBytes(path), Charsets.UTF_8).replace("\u0000", "")
         return ok("抽正文", text)
     }
 
@@ -87,8 +89,62 @@ class FileContentParser(private val storage: StorageService) {
         }
     }
 
+    private fun parsePdf(path: Path): ParsedFile {
+        val text = PdfTextExtractor.extract(path)
+        if (!PdfTextExtractor.looksTextBased(text)) return fail("PDF 未抽取到文本（可能是扫描件/加密或纯图片 PDF），跳过")
+        return ok("PDF 抽文本", text)
+    }
+
+    private fun parseZip(path: Path): ParsedFile {
+        ZipFile(path.toFile()).use { zip ->
+            val entries = ArrayList<java.util.zip.ZipEntry>()
+            val enumeration = zip.entries()
+            while (enumeration.hasMoreElements()) {
+                val entry = enumeration.nextElement()
+                if (!entry.isDirectory) entries.add(entry)
+            }
+            val picked = entries.take(MAX_ZIP_ENTRIES)
+            if (picked.isEmpty()) return fail("压缩包内没有文件，跳过")
+
+            val builder = StringBuilder()
+            var ocrCount = 0
+            for (entry in picked) {
+                val name = entry.name.substringAfterLast('/')
+                val ext = name.substringAfterLast('.', "").lowercase()
+                val bytes = zip.getInputStream(entry).readBytes()
+                val note = when {
+                    ext in TEXT_EXTS -> "内文：" + String(bytes, Charsets.UTF_8).take(600)
+                    ext in IMAGE_EXTS -> {
+                        if (ocrCount < MAX_ZIP_OCR) {
+                            ocrCount++
+                            val temp = Files.createTempFile("acd-zip-", "." + ext)
+                            try {
+                                Files.write(temp, bytes)
+                                val text = ocr.recognize(temp)
+                                if (text != null) "图片 OCR：" + text.take(400) else "图片（OCR 无结果）"
+                            } finally {
+                                Files.deleteIfExists(temp)
+                            }
+                        } else {
+                            "图片（未逐张识别）"
+                        }
+                    }
+                    else -> "其他格式，未解析"
+                }
+                builder.append("[").append(entry.name).append("] ").append(note).append("\n")
+            }
+            return ok("受控解包（" + picked.size + " 个文件）", builder.toString())
+        }
+    }
+
+    private fun parseImage(path: Path): ParsedFile {
+        val text = ocr.recognize(path)
+        if (text.isNullOrBlank()) return fail("图片未识别出文字（OCR 无结果或引擎不可用），不参与内容判定")
+        return ok("图片 OCR", text)
+    }
+
     private fun ok(method: String, rawText: String): ParsedFile {
-        val text = rawText.replace(Regex("[ \t]+"), " ").replace(Regex("\n{3,}"), "\n\n").trim()
+        val text = rawText.replace(Regex("[ \t]+"), " ").replace(Regex("""\n{3,}"""), "\n\n").trim()
         val summary = text.replace(Regex("""\s+"""), " ").take(160)
         return ParsedFile(true, method, text, summary.ifEmpty { "（内容为空）" })
     }
@@ -97,10 +153,12 @@ class FileContentParser(private val storage: StorageService) {
 
     companion object {
         private const val MAX_SIZE = 10L * 1024 * 1024
+        private const val MAX_ZIP_ENTRIES = 20
+        private const val MAX_ZIP_OCR = 3
         private val TEXT_EXTS = setOf(
             "txt", "md", "json", "xml", "yml", "yaml", "csv", "log", "ini", "conf",
             "kt", "java", "js", "ts", "html", "css", "sql", "sh", "bat", "py",
         )
-        private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "heic")
+        private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
     }
 }

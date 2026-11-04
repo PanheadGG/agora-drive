@@ -9,6 +9,8 @@ data class Bounty(
     var status: Int = 1,
     var createdAt: String? = null,
     var publisherName: String = "",
+    var structuredBy: String = "rule",
+    var structuredModel: String? = null,
 )
 
 data class ScanTask(
@@ -42,6 +44,8 @@ data class ScanResult(
     var createdAt: String? = null,
     var fileName: String? = null,
     var fileSize: Long = 0,
+    var judgeSource: String = "rule",
+    var judgeReason: String? = null,
 )
 
 data class FolderRow(

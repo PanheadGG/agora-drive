@@ -11,10 +11,11 @@ interface ScanResultMapper {
 
     @Select(
         """INSERT INTO agent_scan_result (scan_task_id, user_file_id, match_level, parse_status, parse_method,
-                  parsed_summary, evidence_text, risk_tag, risk_desc)
+                  parsed_summary, evidence_text, risk_tag, risk_desc, judge_source, judge_reason)
            VALUES (#{scanTaskId}, #{userFileId}, #{matchLevel}, #{parseStatus}, #{parseMethod,jdbcType=VARCHAR},
                    #{parsedSummary,jdbcType=VARCHAR}, #{evidenceText,jdbcType=VARCHAR},
-                   #{riskTag,jdbcType=VARCHAR}, #{riskDesc,jdbcType=VARCHAR})
+                   #{riskTag,jdbcType=VARCHAR}, #{riskDesc,jdbcType=VARCHAR},
+                   #{judgeSource,jdbcType=VARCHAR}, #{judgeReason,jdbcType=VARCHAR})
            RETURNING id"""
     )
     fun insert(
@@ -27,11 +28,14 @@ interface ScanResultMapper {
         @Param("evidenceText") evidenceText: String?,
         @Param("riskTag") riskTag: String?,
         @Param("riskDesc") riskDesc: String?,
+        @Param("judgeSource") judgeSource: String = "rule",
+        @Param("judgeReason") judgeReason: String? = null,
     ): Long
 
     @Select(
         """SELECT r.id, r.scan_task_id, r.user_file_id, r.match_level, r.parse_status, r.parse_method,
                   r.parsed_summary, r.evidence_text, r.risk_tag, r.risk_desc, r.user_review, r.review_note,
+                  r.judge_source, r.judge_reason,
                   to_char(r.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   uf.file_name, COALESCE(m.total_size, 0) AS file_size
            FROM agent_scan_result r
@@ -45,6 +49,7 @@ interface ScanResultMapper {
     @Select(
         """SELECT r.id, r.scan_task_id, r.user_file_id, r.match_level, r.parse_status, r.parse_method,
                   r.parsed_summary, r.evidence_text, r.risk_tag, r.risk_desc, r.user_review, r.review_note,
+                  r.judge_source, r.judge_reason,
                   to_char(r.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   uf.file_name, COALESCE(m.total_size, 0) AS file_size
            FROM agent_scan_result r

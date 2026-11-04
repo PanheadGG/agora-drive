@@ -33,6 +33,21 @@ object BountyStructureParser {
         }
     }
 
+    /** 扫描时从库里已存储的结构化 JSON 还原需求，保证「按发布时解析出的口径」执行 */
+    fun fromJson(text: String): Requirement? {
+        val json = Json.parseObject(text) ?: return null
+        return Requirement(
+            domain = Json.asString(json["domain"]) ?: "generic",
+            domainLabel = Json.asString(json["domainLabel"]) ?: "通用资料",
+            wants = Json.asStringList(json["wants"]),
+            formats = Json.asStringList(json["formats"]),
+            matchKeywords = Json.asStringList(json["matchKeywords"]).ifEmpty { emptyList() },
+            excludeKeywords = Json.asStringList(json["excludeKeywords"]),
+            yearLimit = Json.asInt(json["yearLimit"], 0).takeIf { it > 0 },
+            understanding = Json.asString(json["understanding"]) ?: "",
+        )
+    }
+
     private data class DomainSpec(
         val key: String,
         val label: String,

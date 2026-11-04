@@ -161,6 +161,9 @@ interface UserFileMapper {
     @Select("""SELECT COUNT(*) FROM user_file WHERE is_recycle = 1""")
     fun countRecycle(): Long
 
+    @Delete("""DELETE FROM user_file WHERE user_id = #{userId}""")
+    fun deleteAllByUser(@Param("userId") userId: Long): Int
+
     @Select("""SELECT COUNT(*) FROM user_file WHERE user_id = #{userId} AND is_recycle = 0""")
     fun countByUser(@Param("userId") userId: Long): Long
 }

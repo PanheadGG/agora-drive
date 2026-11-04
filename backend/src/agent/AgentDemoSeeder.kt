@@ -4,7 +4,9 @@ import com.pgigi.agentclouddisk.common.Roles
 import com.pgigi.agentclouddisk.mapper.BountyMapper
 import com.pgigi.agentclouddisk.mapper.UserFileMapper
 import com.pgigi.agentclouddisk.mapper.UserMapper
+import com.pgigi.agentclouddisk.model.BountyRequest
 import com.pgigi.agentclouddisk.service.FileService
+import com.pgigi.agentclouddisk.service.StorageService
 import com.pgigi.agentclouddisk.service.UploadService
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
@@ -12,12 +14,14 @@ import org.springframework.boot.ApplicationRunner
 import org.springframework.core.annotation.Order
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.stereotype.Component
+import java.nio.file.Files
 
 /**
- * Agent 协同 Demo 的演示数据：
- * - enterprise / ent12345：企业需求用户（role=2），发布 5 条示例悬赏
- * - demo / demo1234：个人用户，个人整理 + 随手拍 两个文件夹共 13 个样本文件
- * 已存在时不会重复创建。
+ * 演示数据：
+ * - enterprise / ent12345：企业需求方（role=2），发布 5 条示例悬赏（配了 DeepSeek Key 时走 LLM 解析）
+ * - demo / demo1234：个人用户，个人整理 + 随手拍 两个文件夹共 13 个**真实文件**
+ *   （docx/xlsx 是 OOXML、pdf 带 xref 可抽文本、png 真实绘制可 OCR、zip 内含真实图片）
+ * 内容版本变化时会重建 demo 的样本文件。
  */
 @Component
 @Order(20)
@@ -27,6 +31,8 @@ class AgentDemoSeeder(
     private val bountyMapper: BountyMapper,
     private val fileService: FileService,
     private val uploadService: UploadService,
+    private val storage: StorageService,
+    private val bountyService: BountyService,
     private val encoder: BCryptPasswordEncoder,
 ) : ApplicationRunner {
 
@@ -52,7 +58,14 @@ class AgentDemoSeeder(
 
     private fun seedPersonalFiles() {
         val demoId = userMapper.findByUsername("demo")?.id ?: return
-        if (userFileMapper.countByUser(demoId) > 0) return
+        val marker = storage.root.resolve(DEMO_CONTENT_MARKER)
+        if (Files.exists(marker)) return
+
+        if (userFileMapper.countByUser(demoId) > 0) {
+            userFileMapper.deleteAllByUser(demoId)
+            userMapper.resetUsedSize(demoId, 0)
+            log.info("replacing demo sample files with real content (v2)")
+        }
 
         val tidy = fileService.createFolder(demoId, null, "个人整理").id
         val shots = fileService.createFolder(demoId, null, "随手拍").id
@@ -61,6 +74,7 @@ class AgentDemoSeeder(
             uploadService.saveSmall(demoId, parentId, name, bytes.inputStream())
         }
 
+        // ---- 个人整理 ----
         upload(
             tidy, "做菜心得.docx", DemoContentFactory.docx(
                 listOf(
@@ -136,13 +150,42 @@ class AgentDemoSeeder(
             )
         )
 
-        upload(shots, "IMG_20250314.png", DemoContentFactory.png())
-        upload(shots, "微信图片_20250402.png", DemoContentFactory.png())
-        upload(shots, "小红书菜谱保存.png", DemoContentFactory.png())
-        upload(shots, "爬山照片合集.zip", DemoContentFactory.zipStub())
-        upload(shots, "体检单扫描件.pdf", DemoContentFactory.pdfStub())
+        // ---- 随手拍（真实图片/PDF/压缩包）----
+        upload(
+            shots, "IMG_20250314.png",
+            DemoContentFactory.photo("番茄炒蛋 家常菜", "2025-03-14 自己做的一顿饭", 0xD97706)
+        )
+        upload(
+            shots, "微信图片_20250402.png",
+            DemoContentFactory.photo("周末爬山 岔路口", "补给点在 5 公里处", 0x1F7A5A)
+        )
+        upload(
+            shots, "小红书菜谱保存.png",
+            DemoContentFactory.photo("小红书 网红菜谱", "保存自网络 转载 侵权删", 0xB91C1C)
+        )
+        upload(
+            shots, "爬山照片合集.zip",
+            DemoContentFactory.zipOf(
+                "岭脚岔路口.png" to DemoContentFactory.photo("徒步路线 岔路口", "海拔 320 米 左侧石阶", 0x2563EB),
+                "山顶补给点.png" to DemoContentFactory.photo("山顶补给点", "海拔 940 米 用时 3 小时", 0x7C3AED),
+            )
+        )
+        upload(
+            shots, "体检单扫描件.pdf",
+            DemoContentFactory.pdf(
+                "Physical Examination Report",
+                listOf(
+                    "Name: ZHANG SAN",
+                    "ID No: 43010519900101123X",
+                    "Mobile: 13812345678",
+                    "Hospital: Xiangya Hospital",
+                    "Item: Blood routine, Liver function",
+                )
+            )
+        )
 
-        log.info("seeded demo personal files under 个人整理 / 随手拍")
+        Files.writeString(marker, "v2", Charsets.UTF_8)
+        log.info("seeded demo personal sample files (real docx/xlsx/pdf/png/zip)")
     }
 
     private fun seedBounties(enterpriseId: Long) {
@@ -188,9 +231,12 @@ class AgentDemoSeeder(
         )
 
         items.forEach { pair ->
-            val requirement = BountyStructureParser.parse(pair.first + " " + pair.second)
-            bountyMapper.insert(enterpriseId, pair.first, pair.second, requirement.toJson(), 1)
+            val created = bountyService.create(enterpriseId, Roles.ENTERPRISE, BountyRequest(pair.first, pair.second))
+            log.info("seeded bounty {} (structuredBy={})", created.title, created.structuredBy)
         }
-        log.info("seeded {} demo bounties", items.size)
+    }
+
+    companion object {
+        private const val DEMO_CONTENT_MARKER = ".demo-content-v2"
     }
 }

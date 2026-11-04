@@ -46,12 +46,17 @@ $testBountyId = $created.body.data.id
 $bounties = Call-Api "GET" "/bounty" $entToken
 Check "bounty list" (@($bounties.body.data).Count -ge 5) $bounties.body
 
+$allBounties = Call-Api "GET" "/bounty" $entToken
+$commuteBounty = ($allBounties.body.data | Where-Object { $_.title -like "*R-05*" } | Select-Object -First 1).id
+$hikingBounty = ($allBounties.body.data | Where-Object { $_.title -like "*R-02*" } | Select-Object -First 1).id
+Check "sample bounties available" ($commuteBounty -gt 0 -and $hikingBounty -gt 0) $allBounties.body.data
+
 $folders = Call-Api "GET" "/agent/folders" $demoToken
 Check "folder scope list" (@($folders.body.data).Count -ge 2) $folders.body
 $tidy = ($folders.body.data | Where-Object { $_.name -eq "个人整理" }).id
 $shots = ($folders.body.data | Where-Object { $_.name -eq "随手拍" }).id
 
-$scan = Call-Api "POST" "/agent/scan" $demoToken @{ bountyId = 5; scopeFileIds = @($tidy) }
+$scan = Call-Api "POST" "/agent/scan" $demoToken @{ bountyId = $commuteBounty; scopeFileIds = @($tidy) }
 Check "scan runs" ($scan.status -eq 200 -and $scan.body.data.taskStatus -eq 2) $scan.body
 $report = $scan.body.data
 Check "scan scope recorded" ($report.scopeNames -contains "个人整理") $report.scopeNames
@@ -64,15 +69,25 @@ Check "excluded files not recommended" (@($report.recommendations | Where-Object
 Check "review tips present" (@($report.reviewTips).Count -ge 2) $report.reviewTips
 Check "understanding restated" ($report.understanding.Length -gt 20) $report.understanding
 
-$scanShots = Call-Api "POST" "/agent/scan" $demoToken @{ bountyId = 4; scopeFileIds = @($shots) }
+$scanShots = Call-Api "POST" "/agent/scan" $demoToken @{ bountyId = $hikingBounty; scopeFileIds = @($shots) }
 $reportShots = $scanShots.body.data
-Check "unparsable files reported" ($reportShots.successParseCount -eq 0 -and @($reportShots.skipped).Count -eq 5) $reportShots.skipped
+Check "real content parsing (OCR/PDF/ZIP)" (
+    @($reportShots.parsedList | Where-Object { $_.parseMethod -like "图片 OCR*" }).Count -ge 3 -and
+    @($reportShots.parsedList | Where-Object { $_.parseMethod -like "受控解包*" }).Count -eq 1 -and
+    @($reportShots.parsedList | Where-Object { $_.parseMethod -eq "PDF 抽文本" }).Count -eq 1
+) $reportShots.parsedList
+Check "pdf sensitive info detected" (@($reportShots.highRisk | Where-Object { $_.fileName -eq "体检单扫描件.pdf" }).Count -eq 1) $reportShots.highRisk
+Check "image content matched by OCR" (@($reportShots.recommendations | Where-Object { $_.fileName -like "*.png" }).Count -ge 1) $reportShots.recommendations
 
-$first = $report.recommendations[0]
-$reviewed = Call-Api "PUT" ("/agent/results/" + $first.id + "/review") $demoToken @{ review = 1; note = "确认可用，脱敏后交付" }
-Check "review confirm" ($reviewed.status -eq 200 -and $reviewed.body.data.userReview -eq 1) $reviewed.body
-$rejected = Call-Api "PUT" ("/agent/results/" + $first.id + "/review") $demoToken @{ review = 2; note = "内容不符合需求" }
-Check "review reject" ($rejected.body.data.userReview -eq 2) $rejected.body
+$first = @($report.recommendations) | Select-Object -First 1
+if ($first) {
+    $reviewed = Call-Api "PUT" ("/agent/results/" + $first.id + "/review") $demoToken @{ review = 1; note = "确认可用，脱敏后交付" }
+    Check "review confirm" ($reviewed.status -eq 200 -and $reviewed.body.data.userReview -eq 1) $reviewed.body
+    $rejected = Call-Api "PUT" ("/agent/results/" + $first.id + "/review") $demoToken @{ review = 2; note = "内容不符合需求" }
+    Check "review reject" ($rejected.body.data.userReview -eq 2) $rejected.body
+} else {
+    Check "review confirm" $false "没有可复核的推荐条目"
+}
 
 $tasks = Call-Api "GET" "/agent/tasks" $demoToken
 Check "task history" (@($tasks.body.data).Count -ge 2) $tasks.body

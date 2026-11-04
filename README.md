@@ -1,129 +1,156 @@
-# Agent 云盘 · 数据要素悬赏匹配 Demo
+# Agent 云盘 · 数据要素悬赏匹配 Demo（已接入 DeepSeek）
 
-在已完成的网盘底座上，按 `docs/agent协同/` 新增「企业发布悬赏 → 个人授权范围 → Agent 分层扫描 / 真实内容解析 → 证据化分级推荐 → 人工复核」闭环。
+在网盘底座之上，按 `docs/agent协同/` 实现「企业发布悬赏 → 个人授权范围 → Agent 分层扫描 / 真实内容解析 → DeepSeek 语义判定 → 证据化分级推荐 → 人工复核 → 审计」完整闭环。
 
-- **后端**：SpringBoot 4.1.1 + Kotlin（Amper / Kotlin Toolchain 构建）+ PostgreSQL + MyBatis + Flyway + BCrypt + JWT
-- **前端**：Vue 3 + Vite + Element Plus，仿阿里云盘界面，支持深浅色
-- **网盘底座**：登录注册、文件浏览与预览、容量统计、上传/删除/回收站、分片上传（含秒传）、管理后台
-- **Agent 协同**：悬赏结构化解析、授权范围控制、逐文件内容解析、敏感/搬运识别、分级推荐、证据留痕、复核与审计
+- **后端**：SpringBoot 4.1.1 + Kotlin（Amper 构建）+ PostgreSQL + MyBatis + Flyway + BCrypt + JWT
+- **前端**：Vue 3 + Vite + Element Plus，仿阿里云盘界面，深浅色主题
+- **大模型**：DeepSeek `deepseek-chat`（JSON 模式），用于悬赏结构化解析与文件匹配判定
+- **内容解析**：文本/Word/Excel/PDF 抽正文，图片走本机 Windows OCR，压缩包受控解包
 
 ![登录页](screenshots/01-login.png)
 
-## 目录结构
+## 一、DeepSeek 接入方式（本次实装重点）
+
+| 调用点 | 实现 | 说明 |
+| --- | --- | --- |
+| 悬赏结构化 | `agent/LlmBountyAnalyzer.kt` | 把自然语言悬赏解析为 domain / formats / matchKeywords / excludeKeywords / yearLimit / understanding，落库 `data_bounty.structured_json`，并记录 `structured_by=llm`、`structured_model=deepseek-chat` |
+| 匹配判定 | `agent/LlmMatchJudge.kt` | 每批 6 个文件调用一次，要求模型返回 `{fileId, matchLevel, evidence, riskTag, riskDesc, reason}`；**证据必须能在解析正文中找到**，否则自动退回本地原文片段（防止模型编造） |
+
+设计要点：
+
+1. **JSON 模式**：请求带 `response_format: {"type":"json_object"}`，后端自带极简 JSON 解析器（`agent/Json.kt`），不引入额外依赖。
+2. **敏感信息不出网**：先用本机规则检测身份证 / 手机号 / 银行卡 / 网络搬运特征，命中即按规则判为高风险，**这些文件的正文不会发给模型**。
+3. **可降级**：未配置 API Key 或调用失败时整体退回本地关键词规则，功能照常可用；前端会显示「DeepSeek」或「本地规则」判定来源。
+4. **状态可观测**：`GET /api/agent/llm-status` 返回 enabled/available/model/calls/failures/lastLatencyMs/lastError，前端在 Agent 页顶部提示当前判定模式。
+
+配置（`backend/resources/application.yml`，全部支持环境变量覆盖）：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `DEEPSEEK_API_KEY` | 空 | **必填**，填写后自动启用 LLM 判定 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | 可指向本地 mock 或代理 |
+| `DEEPSEEK_MODEL` | `deepseek-chat` | 模型名 |
+| `DEEPSEEK_ENABLED` | `true` | 设为 false 可强制走本地规则 |
+| `APP_OCR_ENABLED` | `true` | 图片 OCR 开关（Windows.Media.Ocr） |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | 本地库 | 数据库连接 |
+| `APP_STORAGE_ROOT` / `APP_TEMP_ROOT` | `./data/...` | 存储目录 |
+
+启动示例（PowerShell）：
+
+```powershell
+cd backend
+$env:DEEPSEEK_API_KEY = "sk-..."
+.\kotlin.bat run          # http://127.0.0.1:8080
+```
+
+## 二、真实内容解析
+
+| 类型 | 解析方式 | 实现 |
+| --- | --- | --- |
+| txt / md / csv / json / 代码 | 抽正文 | 直接读取文本 |
+| docx | 解包读 `word/document.xml` | `FileContentParser.parseDocx` |
+| xlsx | 读 sharedStrings + sheet1 单元格 | `parseXlsx` |
+| pdf | 解析内容流（含 FlateDecode）抽文本 | `PdfTextExtractor` |
+| png / jpg | **Windows.Media.Ocr 本机 OCR**，汉字间空格自动归一 | `OcrService`（PowerShell 调用 WinRT） |
+| zip | 受控解包，逐个内层文件抽正文 / OCR（最多 3 张） | `parseZip` |
+
+演示文件全部是**真实生成**的可打开文件（`agent/DemoContentFactory.kt`）：docx/xlsx 是标准 OOXML 包，PDF 带正确 xref 且可被抽文本，PNG 用 Java2D 现场绘制并带可 OCR 的文字，ZIP 内含真实图片。
+
+## 三、目录结构
 
 ```
-backend/                      Spring Boot + Kotlin
-  src/agent/                  Agent 链路：悬赏解析、内容解析、风险识别、扫描编排、演示数据
+backend/
+  src/agent/                  悬赏解析(LLM)、匹配判定(LLM)、内容解析、OCR、风险识别、扫描编排、演示数据
   src/controller/             auth / files / upload / admin / bounty / agent
-  src/service/                网盘底座服务（文件、上传、存储、认证、后台）
+  src/service/                网盘底座（文件、上传、存储、认证、后台）
   src/mapper/                 MyBatis 接口
-  resources/db/migration/     Flyway：V1 底座建表、V2 管理员字段、V3 悬赏协同三张表
-  resources/static/           前端构建产物（单端口访问）
-frontend/                     Vue3 + Vite + Element Plus
-  src/views/                  Drive / Recycle / Bounties / Agent / Admin / Login
-scripts/                      smoke-test.ps1、agent-smoke-test.ps1、build.ps1、ui-screenshots.mjs
+  resources/db/migration/     Flyway：V1 底座、V2 管理员字段、V3 悬赏协同、V4 LLM 来源字段
+frontend/src/views/           Drive / Recycle / Bounties / Agent / Admin / Login
+scripts/                      smoke-test / agent-smoke-test / llm-smoke-test / mock-deepseek / build / ui-screenshots
 screenshots/                  README 截图
 docs/                         原始设计文档
 ```
 
-## 环境要求
+## 四、环境与启动
 
-- JDK 17 及以上（Amper 会自动准备编译用 JVM）
-- Node.js 20+ 与 pnpm
-- PostgreSQL 16+（本 Demo 在 PostgreSQL 18 上验证）
-
-## 准备数据库
+要求：JDK 17+、Node 20+ 与 pnpm、PostgreSQL 16+（本机 PG 18 验证）。
 
 ```sql
 CREATE DATABASE agent_cloud_disk;
 ```
 
-连接信息在 `backend/resources/application.yml`，可用环境变量覆盖：`DB_URL`、`DB_USERNAME`、`DB_PASSWORD`、`JWT_SECRET`、`APP_STORAGE_ROOT`、`APP_TEMP_ROOT`。
-
-表结构由 Flyway 启动时自动迁移；演示账号、示例悬赏与样本文件由 `AdminInitializer` / `AgentDemoSeeder` 首次启动时自动创建。
-
-## 启动
-
 ```powershell
+# 后端（同时托管前端构建产物，单端口访问）
 cd backend
-.\kotlin.bat run        # 打开 http://127.0.0.1:8080
-```
+$env:DEEPSEEK_API_KEY = "sk-..."
+.\kotlin.bat run                # http://127.0.0.1:8080
 
-前端开发模式（热更新，`/api` 代理到 8080）：
-
-```powershell
+# 前端开发模式（可选，/api 代理到 8080）
 pnpm --dir frontend install
 pnpm --dir frontend run dev      # http://127.0.0.1:5173
-```
 
-前端改完同步到后端静态目录：
-
-```powershell
+# 前端改完同步到后端
 powershell -File scripts/build.ps1
 cd backend; .\kotlin.bat build
 ```
 
-## 演示账号
+演示账号：
 
-| 账号 | 密码 | 角色 | 能做什么 |
+| 账号 | 密码 | 角色 | 能力 |
 | --- | --- | --- | --- |
-| admin | admin123 | 管理员 | 用户/配额管理、悬赏启停、Agent 扫描审计 |
-| enterprise | ent12345 | 企业需求方 | 发布/停用悬赏，查看扫描统计（看不到个人原始文件）|
-| demo | demo1234 | 个人用户 | 网盘文件管理、授权范围发起扫描、查看报告与复核 |
+| admin | admin123 | 管理员 | 用户/配额、悬赏启停、扫描审计 |
+| enterprise | ent12345 | 企业需求方 | 发布/停用悬赏，看统计（看不到个人原始文件）|
+| demo | demo1234 | 个人用户 | 网盘文件、授权扫描、报告与复核 |
 
-> 角色沿用已有 `user.role`：**0=个人用户、1=管理员（原有）**，本次新增 **2=企业需求方**。
-> 文档里写的是「1=企业、2=管理员」，为了不改动已落地的管理员数据，这里沿用既有编号，仅新增 2。
+> 角色沿用既有 `user.role`：0=个人用户、1=管理员（原有）、2=企业需求方（本次新增）。
 
-## 演示流程（一条闭环）
+演示数据（首次启动自动生成，重复启动不会重复造）：
 
-1. `enterprise` 登录 → **悬赏广场** → 发布悬赏（自然语言：要什么内容、什么格式、不要什么）→ 系统解析成结构化需求
-2. `demo` 登录 → **智能匹配 Agent** → 选悬赏 → 勾选授权扫描的文件夹（未勾选的不访问）
-3. 点「开始扫描」→ Agent 逐文件打开解析真实内容 → 输出六段式报告：
-   悬赏需求理解 / 范围与粗筛 / 已实际解析清单 / 分级推荐（附证据） / 高风险与排除说明 / 人工复核提醒
-4. 对推荐条目点「确认可用 / 驳回」→ 记录复核状态与备注
-5. `admin` 登录 → 管理后台「悬赏管理」「扫描审计」查看全部悬赏与每次扫描的范围、解析数量、发起人
+- `demo` 的「个人整理」8 个真实文件：做菜心得.docx、通勤记录.xlsx、猫猫喂养表.xlsx、平凡的世界读后感.docx、读书摘抄.docx、徒步手记.txt、微信账单导出.xlsx（含手机号，本地判高危）、长沙攻略下载.docx（含小红书/转载特征，判搬运）
+- `demo` 的「随手拍」5 个真实文件：3 张可 OCR 的 PNG、1 个内含 2 张 PNG 的 ZIP、1 个带身份证与手机号的文本型 PDF
+- `enterprise` 的 5 条示例悬赏（配了 Key 时由 DeepSeek 解析成结构化需求）
 
-## 已实现能力
+## 五、验证与测试
 
-### 网盘底座（此前已完成）
+三套脚本，均已在本机实际跑通：
 
-| 需求 | 实现 |
-| --- | --- |
-| 登录/注册 | BCrypt + HS256 JWT，`/api/auth/**` 之外全部鉴权 |
-| 文件浏览 | 宫格/列表、面包屑、搜索、重命名、图片与文本预览 |
-| 容量计算 | `used_size` 原子增减，超配额拒绝上传 |
-| 上传/删除/回收站 | 小文件直传、递归删除、恢复、彻底删除、清空回收站 |
-| 分片上传 | init → chunk → merge，5MB/片，sha256 秒传与磁盘去重 |
-| 管理员 | 统计、用户搜索、启停账号、调整配额 |
+| 脚本 | 覆盖 | 结果 |
+| --- | --- | --- |
+| `scripts/smoke-test.ps1` | 网盘底座：注册登录、鉴权、文件夹、小文件/分片上传、秒传、容量、下载、回收站、管理员、配额上限 | **27/27 PASS** |
+| `scripts/agent-smoke-test.ps1` | Agent 链路：角色限制、企业发布、授权扫描、内容解析（OCR/PDF/ZIP）、证据、风险与搬运排除、复核、越权 403、后台审计 | **29/29 PASS** |
+| `scripts/llm-smoke-test.ps1` | DeepSeek 接入：llm-status、悬赏由 LLM 结构化、调用计数、匹配判定走 LLM、证据接地、敏感文件仍走本地规则 | **10/10 PASS** |
 
-### Agent 协同（本次新增）
+```powershell
+powershell -File scripts/smoke-test.ps1
+powershell -File scripts/agent-smoke-test.ps1
+powershell -File scripts/llm-smoke-test.ps1     # 需要 DEEPSEEK_API_KEY
+```
 
-| 文档要求 | 实现方式 |
-| --- | --- |
-| 悬赏结构化解析 | `BountyStructureParser`：从自然语言中解析领域、可用格式、匹配关键词、排除项、时间倾向，落库 `data_bounty.structured_json` |
-| 最小授权 | 只扫描用户勾选的文件夹/文件（递归展开），范围外不访问；任务记录 `auth_scope_json` |
-| 实际内容解析 | `FileContentParser`：txt/md/csv/json 抽正文；docx 解包抽 `word/document.xml`；xlsx 读表头与单元格；图片/PDF/压缩包如实标记「未解析」 |
-| 敏感信息检测 | `RiskDetector`：身份证、手机号、银行卡规则命中 → 高风险，直接排除出推荐并说明 |
-| 网络搬运识别 | 解析正文中的小红书/公众号/转载/侵权删等特征 → 判为搬运，排除 |
-| 语义匹配分级 | 领域关键词命中数 ≥3 高匹配、=2 中匹配、=1 低匹配；命中证据截取原文片段 |
-| 证据可追溯 | 每条结果保存 `parse_method`、`parsed_summary`、`evidence_text`、风险标签与说明 |
-| 分级推荐 | 推荐清单只包含 level>0 的条目，按等级排序，附建议 |
-| 人工复核 | 每条结果可标记「确认可用 / 驳回」并写备注 |
-| 仅推荐不自动提交 | 全程无对外发送能力，报告明确提示由用户脱敏后自行交付 |
-| 审计留痕 | `agent_scan_task` 记录范围、状态、文件数、解析成功/失败数、发起人、时间；管理后台可查 |
-| 企业看不到原始文件 | 企业只能看悬赏与统计，读取个人扫描详情直接 403 |
+没有 Key 也能验证 LLM 链路：`node scripts/mock-deepseek.mjs 9099` 起一个 OpenAI/DeepSeek 兼容的 mock，然后
 
-新增表（`V3__agent_collab.sql`，不改动原有表）：`data_bounty`、`agent_scan_task`、`agent_scan_result`。
-在文档三张表基础上补充了 `parse_status`、`parse_method`、`parsed_summary` 三个字段，用于展示「怎么解析的、解析出了什么」。
+```powershell
+cd backend
+$env:DEEPSEEK_API_KEY = "mock-key"
+$env:DEEPSEEK_BASE_URL = "http://127.0.0.1:9099"
+$env:DEEPSEEK_MODEL = "deepseek-mock"
+.\kotlin.bat run
+```
 
-## 接口一览
+真实 DeepSeek 判定样例（`llm-smoke-test.ps1` 输出）：
+
+```
+[高匹配] 做菜心得.docx | 正文为家常菜原创做法记录，含食材与步骤，直接满足需求。
+         证据：家常菜做法记录 一、番茄炒蛋：食材 番茄两个、鸡蛋三个；步骤：先把蛋液炒散盛出…
+[不推荐] 徒步手记.txt | 内容为徒步路线记录，与烹饪领域无关。
+```
+
+## 六、接口一览
 
 网盘底座：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/auth/register` `/api/auth/login` | 注册 / 登录 |
-| GET | `/api/auth/me` | 当前用户 |
+| POST | `/api/auth/register` `/api/auth/login`、GET `/api/auth/me` | 注册 / 登录 / 当前用户 |
 | GET | `/api/files?parentId=&keyword=` | 列目录（含面包屑） |
 | POST | `/api/files/folder`、PUT `/api/files/{id}/rename` | 新建文件夹 / 重命名 |
 | DELETE | `/api/files/{id}` | 移入回收站 |
@@ -137,49 +164,27 @@ Agent 协同：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/bounty?status=` | 悬赏列表（个人只看进行中，企业看自己发布，管理员看全部）|
-| POST | `/api/bounty` | 企业发布悬赏并结构化解析 |
-| GET | `/api/bounty/{id}` | 悬赏详情 |
-| PUT | `/api/bounty/{id}/status?status=` | 启用/停用（发布方或管理员）|
-| GET | `/api/agent/folders` | 本人文件夹树（供勾选授权范围）|
+| GET | `/api/bounty?status=`、POST `/api/bounty`、GET `/api/bounty/{id}`、PUT `/api/bounty/{id}/status` | 悬赏列表 / 发布（LLM 结构化）/ 详情 / 启停 |
+| GET | `/api/agent/folders` | 本人文件夹树（授权范围） |
+| GET | `/api/agent/llm-status` | DeepSeek / OCR 能力状态 |
 | POST | `/api/agent/scan` | `{bountyId, scopeFileIds}` 发起扫描并返回报告 |
-| GET | `/api/agent/tasks` | 我的扫描记录 |
-| GET | `/api/agent/tasks/{id}` | 扫描报告详情（六段式）|
-| PUT | `/api/agent/results/{id}/review` | 复核：`{review: 1确认/2驳回, note}` |
-| GET | `/api/admin/bounties`、PUT `/api/admin/bounties/{id}/status` | 后台悬赏管理 |
-| GET | `/api/admin/scan-tasks?bountyId=` | 后台扫描审计 |
+| GET | `/api/agent/tasks`、GET `/api/agent/tasks/{id}` | 我的任务 / 六段式报告 |
+| PUT | `/api/agent/results/{id}/review` | 复核 `{review:1确认/2驳回, note}` |
+| GET | `/api/admin/bounties`、PUT `/api/admin/bounties/{id}/status`、GET `/api/admin/scan-tasks` | 后台悬赏管理与扫描审计 |
 
-统一响应体：`{ "code": 0, "msg": "ok", "data": ... }`，失败时 `code` 为 HTTP 状态码。
+统一响应体：`{ "code": 0, "msg": "ok", "data": ... }`。
 
-## 存储布局
-
-```
-正式文件  {storage_root}/{sha256[0:2]}/{sha256[2:4]}/{sha256}
-分片临时  {temp_root}/{task_id}/{chunk_index}
-```
-
-默认根目录 `backend/data/`（可用 `APP_STORAGE_ROOT`、`APP_TEMP_ROOT` 覆盖）。
-
-## 冒烟测试
-
-```powershell
-powershell -File scripts/smoke-test.ps1        # 网盘底座 27 项
-powershell -File scripts/agent-smoke-test.ps1  # Agent 协同 26 项
-```
-
-Agent 脚本覆盖：角色限制（个人不能发布）、企业发布与结构化解析、授权扫描、内容确实被解析、证据与风险/搬运识别、排除项不进推荐、无法解析的文件如实说明、复核确认与驳回、越权读取 403、管理员统计与审计。脚本会创建一条测试悬赏并在结束时停用。
-
-## 界面
+## 七、界面
 
 | 网盘（宫格） | 网盘（列表） |
 | --- | --- |
 | ![宫格](screenshots/02-drive-grid.png) | ![列表](screenshots/03-drive-list.png) |
 
-| 图片预览 | 文本预览 | 回收站 |
+| 图片预览（OCR 可识别内容） | 文本预览 | 回收站 |
 | --- | --- | --- |
 | ![图片预览](screenshots/06-image-preview.png) | ![文本预览](screenshots/04-text-preview.png) | ![回收站](screenshots/07-recycle.png) |
 
-| 悬赏广场 | 智能匹配 Agent（报告） |
+| 悬赏广场（DeepSeek 解析） | 智能匹配 Agent（报告 + 判定来源） |
 | --- | --- |
 | ![悬赏广场](screenshots/10-bounties.png) | ![Agent 报告](screenshots/11-agent-report-top.png) |
 
@@ -191,13 +196,11 @@ Agent 脚本覆盖：角色限制（个人不能发布）、企业发布与结�
 | --- | --- | --- |
 | ![后台](screenshots/14-admin-overview.png) | ![悬赏管理](screenshots/15-admin-bounties.png) | ![扫描审计](screenshots/16-admin-audit.png) |
 
-深色模式：[网盘](screenshots/09-drive-dark.png)、[回收站](screenshots/07-recycle.png)。
+## 八、已知限制
 
-## 已知限制
-
-- **没有接入真实 LLM**：悬赏解析用可解释的关键词规则（`BountyStructureParser`），形态与 LLM 输出一致，替换实现即可接大模型
-- **图片没有 OCR/识图**：服务端未内置识别引擎，图片仅登记元信息并如实标注「未解析」，不参与内容判定；PDF、压缩包同理
-- **没有向量召回与 file_embedding 表**：Demo 阶段用授权范围全量遍历 + 关键词语义打分，文件数量为几十级
-- **扫描同步执行**：任务状态仍按 排队/扫描中/完成 记录，未做异步队列与进度推送
-- 复核结果只落库，未实现脱敏、打包、导出交付链路（文档也明确演示阶段不做真实交易对接）
-- `application.yml` 中的数据库口令仅用于本地演示，正式环境请用环境变量注入
+- 图片 OCR 依赖 Windows 自带识别引擎（本机离线可用），只识别画面文字，不做图像语义理解；扫描件类 PDF 仍需先转图片再 OCR
+- 文件摘要向量召回（`file_embedding`）未实现：Demo 用「授权范围全量遍历 + LLM/关键词判定」，授权范围是几十个文件的量级
+- 扫描同步执行：任务状态照常记录（排队/扫描中/完成），但没有异步队列与实时进度推送
+- 大模型只看文本，图片判定依赖 OCR 出来的文字；纯画面（如无文字照片）仍需人工看图
+- 复核结果只落库，未实现脱敏、打包、导出与交付链路（文档也明确演示阶段不做真实交易对接）
+- 演示用数据库口令写在 `application.yml` 默认值中，正式环境请用环境变量注入；API Key 只从环境变量读取，不写盘
