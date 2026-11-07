@@ -36,9 +36,28 @@ Check "llm-status readable" ($status.status -eq 200) $status.body
 $available = $status.body.data.llm.available
 Check "deepseek configured" ($available -eq $true) $status.body.data.llm
 if (-not $available) {
-    Write-Output "提示：未配置 API Key，请设置 DEEPSEEK_API_KEY 或指向 mock 服务后重试"
+    Write-Output "提示：管理后台还没有启用的模型平台，请先在「模型管理」新增平台（或设置 DEEPSEEK_API_KEY 播种）"
     Write-Output ("FAILURES: " + $script:fail)
-    exit 1
+    exit 2
+}
+
+# 先用管理端连通性测试确认真有可用平台，Key 失效时直接给出明确提示而不是一串断言失败
+$adminForCheck = Call "POST" "/auth/login" $null @{ username = "admin"; password = "admin123" }
+$adminToken = $adminForCheck.body.data.token
+$providers = (Call "GET" "/admin/ai-providers" $adminToken).body.data
+$healthyIds = @()
+foreach ($p in $providers) {
+    if ($p.status -ne 1) { continue }
+    $t = (Call "POST" ("/admin/ai-providers/" + $p.id + "/test") $adminToken).body.data
+    if ($t.ok) { $healthyIds += $p.id; Write-Output ("平台可用：" + $p.name + "（" + $p.model + "，" + $t.latencyMs + " ms）") }
+    else { Write-Output ("平台不可用：" + $p.name + " -> " + $t.message) }
+}
+if ($healthyIds.Count -eq 0) {
+    Write-Output ""
+    Write-Output "所有已启用的模型平台都无法连通（常见原因：API Key 过期/额度用尽/网络不通）。"
+    Write-Output "请登录管理后台 → 模型管理 → 编辑对应平台并填入新的 API Key 后重试。"
+    Write-Output "（此时 Agent 会自动降级为本地规则判定，扫描功能仍可用）"
+    exit 2
 }
 
 $created = Call "POST" "/bounty" $entToken @{

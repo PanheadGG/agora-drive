@@ -30,12 +30,21 @@ app:
     temp-root: ${APP_TEMP_ROOT:./data/temp}
   upload:
     chunk-size: 5242880
+  # 多平台 AI：模型与 Key 由管理后台维护（Key 用 AES-GCM 加密入库）
+  ai:
+    enabled: ${AI_ENABLED:true}
+    cooldown-seconds: ${AI_COOLDOWN_SECONDS:60}
+  # 首次启动时用于播种默认模型的引导值，之后以管理后台配置为准
   deepseek:
     enabled: ${DEEPSEEK_ENABLED:true}
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
     model: ${DEEPSEEK_MODEL:deepseek-chat}
     timeout-seconds: 60
+  # API Key 加密主密钥：优先环境变量，其次本地密钥文件（不入库、不提交）
+  crypto:
+    master-key: ${APP_MASTER_KEY:}
+    master-key-file: ${APP_MASTER_KEY_FILE:./data/master.key}
   ocr:
     enabled: ${APP_OCR_ENABLED:true}
     timeout-seconds: 90

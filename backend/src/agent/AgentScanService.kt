@@ -33,7 +33,7 @@ class AgentScanService(
     private val scanResultMapper: ScanResultMapper,
     private val contentParser: FileContentParser,
     private val matchJudge: LlmMatchJudge,
-    private val llmClient: DeepSeekClient,
+    private val llmClient: LlmClient,
     private val ocrService: OcrService,
 ) {
 

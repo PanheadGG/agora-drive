@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service
  * 用 DeepSeek 把自然语言悬赏解析为结构化需求；与本地规则交叉校验，失败时退回规则结果。
  */
 @Service
-class LlmBountyAnalyzer(private val client: DeepSeekClient) {
+class LlmBountyAnalyzer(private val client: LlmClient) {
 
     private val log = LoggerFactory.getLogger(LlmBountyAnalyzer::class.java)
 

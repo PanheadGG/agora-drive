@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service
  * 注意：已在本机检出敏感信息的文件不会送给模型（不出网），直接按本地规则判为高风险。
  */
 @Service
-class LlmMatchJudge(private val client: DeepSeekClient) {
+class LlmMatchJudge(private val client: LlmClient) {
 
     private val log = LoggerFactory.getLogger(LlmMatchJudge::class.java)
 
@@ -84,7 +84,7 @@ class LlmMatchJudge(private val client: DeepSeekClient) {
                 source = "llm",
             )
         }
-        log.info("deepseek judged {} files (requested {})", judgements.size, items.size)
+        log.info("llm judged {} files (requested {})", judgements.size, items.size)
         return judgements
     }
 

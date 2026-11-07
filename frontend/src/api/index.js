@@ -49,6 +49,15 @@ export const api = {
   adminBountyStatus: (id, status) => http.put('/admin/bounties/' + id + '/status?status=' + status),
   adminScanTasks: (bountyId) => http.get('/admin/scan-tasks', { params: { bountyId } }),
 
+  aiProviders: () => http.get('/admin/ai-providers'),
+  aiProviderStatus: () => http.get('/admin/ai-providers/status'),
+  aiProviderCreate: (data) => http.post('/admin/ai-providers', data),
+  aiProviderUpdate: (id, data) => http.put('/admin/ai-providers/' + id, data),
+  aiProviderDelete: (id) => http.delete('/admin/ai-providers/' + id),
+  aiProviderTest: (id) => http.post('/admin/ai-providers/' + id + '/test'),
+  aiProviderStatusToggle: (id, status) => http.put('/admin/ai-providers/' + id + '/status?status=' + status),
+  aiProviderPriority: (id, priority) => http.put('/admin/ai-providers/' + id + '/priority?priority=' + priority),
+
   adminStats: () => http.get('/admin/stats'),
   adminUsers: (keyword = '') => http.get('/admin/users', { params: { keyword } }),
   adminStatus: (id, status) => http.put(`/admin/users/${id}/status?status=${status}`),

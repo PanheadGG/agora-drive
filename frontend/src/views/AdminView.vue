@@ -7,6 +7,7 @@ import { api } from '../api'
 import { auth } from '../store/auth'
 import { theme, toggleTheme } from '../store/theme'
 import { formatBytes, quotaPercent } from '../utils/format'
+import AdminAiProviders from './AdminAiProviders.vue'
 
 const router = useRouter()
 const activeTab = ref('users')
@@ -183,6 +184,10 @@ onMounted(load)
               </template>
             </el-table-column>
           </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="模型管理" name="ai">
+          <AdminAiProviders />
         </el-tab-pane>
 
         <el-tab-pane label="扫描审计" name="audit">
