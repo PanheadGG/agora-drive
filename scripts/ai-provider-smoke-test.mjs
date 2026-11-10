@@ -119,11 +119,22 @@ try {
   const bounties = await call('GET', '/bounty', adminToken)
   const cooking = bounties.body.data.find((b) => b.title.includes('R-01')) || bounties.body.data[0]
   const before = (await call('GET', '/admin/ai-providers/status', adminToken)).body.data.failoverCount
-  const scan = await call('POST', '/agent/scan', demoToken, { bountyId: cooking.id, scopeFileIds: [tidy] })
-  check('scan survives primary failure', scan.status === 200 && scan.body.data.taskStatus === 2, scan.body?.msg)
-  check('scan used llm after failover', scan.body.data.llmUsed === true, {
-    llmUsed: scan.body.data.llmUsed,
-    judged: scan.body.data.llmJudgedCount,
+  const started = await call('POST', '/agent/scan', demoToken, { bountyId: cooking.id, scopeFileIds: [tidy] })
+  const scanTaskId = started.body?.data?.taskId
+  let scanDetail = null
+  const scanDeadline = Date.now() + 120000
+  while (Date.now() < scanDeadline) {
+    const p = await call('GET', '/agent/tasks/' + scanTaskId + '/progress', demoToken)
+    if (p.body?.data?.done) {
+      scanDetail = (await call('GET', '/agent/tasks/' + scanTaskId, demoToken)).body.data
+      break
+    }
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  check('scan survives primary failure', !!scanDetail && scanDetail.taskStatus === 2, started.body?.msg)
+  check('scan used llm after failover', scanDetail?.llmUsed === true, {
+    llmUsed: scanDetail?.llmUsed,
+    judged: scanDetail?.llmJudgedCount,
   })
   const afterStatus = (await call('GET', '/admin/ai-providers/status', adminToken)).body.data
   check('failover counted', afterStatus.failoverCount > before, { before, after: afterStatus.failoverCount })

@@ -5,8 +5,11 @@ import com.pgigi.agentclouddisk.auth.CurrentUser
 import com.pgigi.agentclouddisk.common.ApiResult
 import com.pgigi.agentclouddisk.model.FolderNodeDto
 import com.pgigi.agentclouddisk.model.ReviewRequest
+import com.pgigi.agentclouddisk.model.ScanPreviewDto
+import com.pgigi.agentclouddisk.model.ScanProgressDto
 import com.pgigi.agentclouddisk.model.ScanRequest
 import com.pgigi.agentclouddisk.model.ScanResultDto
+import com.pgigi.agentclouddisk.model.ScanStartDto
 import com.pgigi.agentclouddisk.model.ScanTaskDetailDto
 import com.pgigi.agentclouddisk.model.ScanTaskRowDto
 import org.springframework.web.bind.annotation.GetMapping
@@ -25,13 +28,19 @@ class AgentController(private val agentScanService: AgentScanService) {
     @GetMapping("/folders")
     fun folders(): ApiResult<List<FolderNodeDto>> = ApiResult.ok(agentScanService.folders(CurrentUser.id()))
 
-    /** DeepSeek / OCR 能力状态，前端用于提示当前是 LLM 判定还是本地规则 */
+    /** 模型 / OCR 能力状态 */
     @GetMapping("/llm-status")
     fun llmStatus(): ApiResult<Map<String, Any?>> = ApiResult.ok(agentScanService.llmStatus())
 
+    /** 发起扫描：立即返回 taskId，扫描在线程池里异步执行 */
     @PostMapping("/scan")
-    fun scan(@RequestBody body: ScanRequest): ApiResult<ScanTaskDetailDto> =
+    fun scan(@RequestBody body: ScanRequest): ApiResult<ScanStartDto> =
         ApiResult.ok(agentScanService.startScan(CurrentUser.id(), body))
+
+    /** 扫描过程实时进度（前端轮询） */
+    @GetMapping("/tasks/{id}/progress")
+    fun progress(@PathVariable id: Long): ApiResult<ScanProgressDto> =
+        ApiResult.ok(agentScanService.progress(id, CurrentUser.id(), CurrentUser.role()))
 
     @GetMapping("/tasks")
     fun tasks(): ApiResult<List<ScanTaskRowDto>> = ApiResult.ok(agentScanService.myTasks(CurrentUser.id()))
@@ -39,6 +48,11 @@ class AgentController(private val agentScanService: AgentScanService) {
     @GetMapping("/tasks/{id}")
     fun detail(@PathVariable id: Long): ApiResult<ScanTaskDetailDto> =
         ApiResult.ok(agentScanService.detail(id, CurrentUser.id(), CurrentUser.role()))
+
+    /** 扫描结果的内容预览（正文 / 表格行 / 图片标记） */
+    @GetMapping("/results/{id}/preview")
+    fun preview(@PathVariable id: Long): ApiResult<ScanPreviewDto> =
+        ApiResult.ok(agentScanService.preview(CurrentUser.id(), CurrentUser.role(), id))
 
     @PutMapping("/results/{id}/review")
     fun review(@PathVariable id: Long, @RequestBody body: ReviewRequest): ApiResult<ScanResultDto> =

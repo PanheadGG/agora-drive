@@ -43,6 +43,8 @@ export const api = {
   agentScan: (data) => http.post('/agent/scan', data),
   agentTasks: () => http.get('/agent/tasks'),
   agentTask: (id) => http.get('/agent/tasks/' + id),
+  agentProgress: (id) => http.get('/agent/tasks/' + id + '/progress'),
+  agentPreview: (resultId) => http.get('/agent/results/' + resultId + '/preview'),
   agentReview: (id, data) => http.put('/agent/results/' + id + '/review', data),
 
   adminBounties: (status) => http.get('/admin/bounties', { params: { status } }),

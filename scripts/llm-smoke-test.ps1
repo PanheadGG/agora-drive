@@ -71,9 +71,21 @@ Check "llm keywords present" (@($structured.matchKeywords).Count -ge 4) $structu
 $status2 = Call "GET" "/agent/llm-status" $demoToken
 Check "llm call counted" ($status2.body.data.llm.calls -ge 1) $status2.body.data.llm
 
+function Start-Scan2($token, $bountyId, $scopeIds) {
+    $started = Call "POST" "/agent/scan" $token @{ bountyId = $bountyId; scopeFileIds = $scopeIds }
+    $taskId = $started.body.data.taskId
+    $deadline = (Get-Date).AddSeconds(120)
+    while ((Get-Date) -lt $deadline) {
+        $p = Call "GET" ("/agent/tasks/" + $taskId + "/progress") $token
+        if ($p.body.data.done) { break }
+        Start-Sleep -Milliseconds 300
+    }
+    return (Call "GET" ("/agent/tasks/" + $taskId) $token)
+}
+
 $folders = Call "GET" "/agent/folders" $demoToken
 $tidy = ($folders.body.data | Where-Object { $_.name -eq "个人整理" }).id
-$scan = Call "POST" "/agent/scan" $demoToken @{ bountyId = $bountyId; scopeFileIds = @($tidy) }
+$scan = Start-Scan2 $demoToken $bountyId @($tidy)
 Check "scan ok" ($scan.status -eq 200) $scan.body
 $report = $scan.body.data
 $llmResults = @($report.parsedList | Where-Object { $_.judgeSource -eq "llm" })

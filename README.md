@@ -101,18 +101,36 @@ $env:APP_MASTER_KEY = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Ra
 
 ![新增平台](screenshots/18-admin-ai-dialog.png)
 
-## 三、真实内容解析
+## 三、流式内容解析与敏感检测（本次优化）
 
-| 类型 | 解析方式 | 实现 |
+解析全程**边读边判**，不再整份文件读进内存；敏感信息在解析过程中实时命中，命中即判定为高风险、正文不外发。
+
+| 类型 | 解析方式（流式） | 实现 |
 | --- | --- | --- |
-| txt / md / csv / json / 代码 | 抽正文 | 直接读取文本 |
-| docx | 解包读 `word/document.xml` | `FileContentParser.parseDocx` |
-| xlsx | 读 sharedStrings + sheet1 单元格 | `parseXlsx` |
-| pdf | 解析内容流（含 FlateDecode）抽文本 | `PdfTextExtractor` |
-| png / jpg | **Windows.Media.Ocr 本机 OCR**，汉字间空格自动归一 | `OcrService`（PowerShell 调用 WinRT） |
-| zip | 受控解包，逐个内层文件抽正文 / OCR（最多 3 张） | `parseZip` |
+| xlsx / xls | **EasyExcel 逐行读取**，每行实时送敏感扫描器，只留表头 + 前 12 行做预览 | `FileContentParser.parseXlsx` + `StreamingSensitiveScanner` |
+| docx | **StAX 流式解析** `word/document.xml`，逐段喂扫描器 | `parseDocxStream` |
+| txt / md / csv / json / 代码 | 8KB 字符块流式读取 | `parseText` |
+| pdf | 抽文本后**分块**扫描 | `PdfTextExtractor` + 分块 |
+| png / jpg | Windows.Media.Ocr 本机 OCR，汉字间空格归一 | `OcrService` |
+| zip | 受控解包，内层文本流式读、图片按需 OCR（最多 3 张） | `parseZip` |
+
+`StreamingSensitiveScanner` 保留 32 字符尾部重叠窗口，**跨块边界被截断的身份证/手机号/银行卡号也能命中**；同时流式识别小红书/公众号/转载等搬运特征。
+
+> 实测：`微信账单导出.xlsx`（含手机号）与 `长沙攻略下载.docx`（含搬运特征）在扫描过程中就被标记为高风险，不会进入大模型判定，也不会外发正文。
 
 演示文件全部是**真实生成**的可打开文件（`agent/DemoContentFactory.kt`）：docx/xlsx 是标准 OOXML 包，PDF 带正确 xref 且可被抽文本，PNG 用 Java2D 现场绘制并带可 OCR 的文字，ZIP 内含真实图片。
+
+### 扫描过程可见 + 结果可预览（本次新增）
+
+- **异步执行**：`POST /api/agent/scan` 立即返回 `taskId`，扫描在独立线程池跑，接口不再阻塞。
+- **实时进度**：前端每 400ms 轮询 `GET /api/agent/tasks/{id}/progress`，显示当前阶段（解析内容 / 语义判定 / 写入结果）、当前正在解析的文件、已处理数量、已完成文件的解析方式与风险标签。
+- **完成即预览**：每条结果都能打开预览抽屉——表格还原成带表头的表格，文档/文本显示抽取出的正文，图片直接显示原图，并附带解析方式与风险提示。
+
+![扫描过程](screenshots/19-scan-progress.png)
+
+| 表格预览 | 文档预览 |
+| --- | --- |
+| ![表格预览](screenshots/20-scan-preview-table.png) | ![文档预览](screenshots/21-scan-preview-text.png) |
 
 ## 四、目录结构
 
@@ -122,9 +140,9 @@ backend/
   src/controller/             auth / files / upload / admin / bounty / agent
   src/service/                网盘底座（文件、上传、存储、认证、后台）
   src/mapper/                 MyBatis 接口
-  resources/db/migration/     Flyway：V1 底座、V2 管理员字段、V3 悬赏协同、V4 LLM 来源字段
+  resources/db/migration/     Flyway：V1 底座、V2 管理员字段、V3 悬赏协同、V4 LLM 来源、V5 模型平台、V6 扫描预览
 frontend/src/views/           Drive / Recycle / Bounties / Agent / Admin / Login
-scripts/                      smoke-test / agent-smoke-test / llm-smoke-test / mock-deepseek / build / ui-screenshots
+scripts/                      smoke-test / agent-smoke-test / llm-smoke-test / ai-provider-smoke-test / scan-progress-test / mock-deepseek / build / ui-screenshots
 screenshots/                  README 截图
 docs/                         原始设计文档
 ```
@@ -170,7 +188,7 @@ cd backend; .\kotlin.bat build
 
 ## 六、验证与测试
 
-四套脚本，均已在本机实际跑通：
+五套脚本，均已在本机实际跑通：
 
 | 脚本 | 覆盖 | 结果 |
 | --- | --- | --- |
@@ -178,12 +196,14 @@ cd backend; .\kotlin.bat build
 | `scripts/agent-smoke-test.ps1` | Agent 链路：角色限制、企业发布、授权扫描、内容解析（OCR/PDF/ZIP）、证据、风险与搬运排除、复核、越权 403、后台审计 | **29/29 PASS** |
 | `scripts/llm-smoke-test.ps1` | LLM 链路：llm-status、悬赏由 LLM 结构化、调用计数、匹配判定走 LLM、证据接地、敏感文件仍走本地规则 | **10/10 PASS**（用可用平台验证） |
 | `scripts/ai-provider-smoke-test.mjs` | 模型管理：多平台增删改查、Key 加密与脱敏、连通性测试、不可达平台自动切换、冷却与健康记录、停用/排序、非管理员 403、参数校验 | **29/29 PASS** |
+| `scripts/scan-progress-test.mjs` | 扫描过程与预览：异步返回 taskId、轮询到 running 状态、实时事件流、表格/文档预览、流式敏感检测、越权预览 403 | **17/17 PASS** |
 
 ```powershell
 powershell -File scripts/smoke-test.ps1
 powershell -File scripts/agent-smoke-test.ps1
 node scripts/ai-provider-smoke-test.mjs        # 自包含：会自己拉起 mock 平台
 powershell -File scripts/llm-smoke-test.ps1    # 需要至少一个连通正常的平台
+node scripts/scan-progress-test.mjs            # 异步扫描进度 + 结果预览
 ```
 
 `llm-smoke-test.ps1` 会先逐个测试已启用平台：全部不可用时直接给出「请到模型管理更新 Key」的提示并跳过断言，而不是抛一串失败。
@@ -221,8 +241,10 @@ Agent 协同：
 | GET | `/api/bounty?status=`、POST `/api/bounty`、GET `/api/bounty/{id}`、PUT `/api/bounty/{id}/status` | 悬赏列表 / 发布（LLM 结构化）/ 详情 / 启停 |
 | GET | `/api/agent/folders` | 本人文件夹树（授权范围） |
 | GET | `/api/agent/llm-status` | DeepSeek / OCR 能力状态 |
-| POST | `/api/agent/scan` | `{bountyId, scopeFileIds}` 发起扫描并返回报告 |
+| POST | `/api/agent/scan` | `{bountyId, scopeFileIds}` 发起扫描，立即返回 `taskId`（异步执行） |
 | GET | `/api/agent/tasks`、GET `/api/agent/tasks/{id}` | 我的任务 / 六段式报告 |
+| GET | `/api/agent/tasks/{id}/progress` | 扫描实时进度：阶段、当前文件、已处理数、逐文件事件 |
+| GET | `/api/agent/results/{id}/preview` | 结果预览：表格行 / 文本正文 / 图片标记 |
 | PUT | `/api/agent/results/{id}/review` | 复核 `{review:1确认/2驳回, note}` |
 | GET | `/api/admin/bounties`、PUT `/api/admin/bounties/{id}/status`、GET `/api/admin/scan-tasks` | 后台悬赏管理与扫描审计 |
 | GET | `/api/admin/ai-providers`、GET `/api/admin/ai-providers/status` | 模型列表（Key 脱敏）/ 链路状态（当前平台、冷却、切换次数、主密钥来源） |
@@ -242,9 +264,13 @@ Agent 协同：
 | --- | --- | --- |
 | ![图片预览](screenshots/06-image-preview.png) | ![文本预览](screenshots/04-text-preview.png) | ![回收站](screenshots/07-recycle.png) |
 
-| 悬赏广场（DeepSeek 解析） | 智能匹配 Agent（报告 + 判定来源） |
+| 悬赏广场（大模型解析） | 智能匹配 Agent（报告 + 判定来源） |
 | --- | --- |
 | ![悬赏广场](screenshots/10-bounties.png) | ![Agent 报告](screenshots/11-agent-report-top.png) |
+
+| 扫描过程实时可见 | 完成后可直接预览 |
+| --- | --- |
+| ![扫描过程](screenshots/19-scan-progress.png) | ![表格预览](screenshots/20-scan-preview-table.png) |
 
 | 推荐清单与证据 | 高风险与复核提醒 |
 | --- | --- |
@@ -262,7 +288,9 @@ Agent 协同：
 
 - 图片 OCR 依赖 Windows 自带识别引擎（本机离线可用），只识别画面文字，不做图像语义理解；扫描件类 PDF 仍需先转图片再 OCR
 - 文件摘要向量召回（`file_embedding`）未实现：Demo 用「授权范围全量遍历 + LLM/关键词判定」，授权范围是几十个文件的量级
-- 扫描同步执行：任务状态照常记录（排队/扫描中/完成），但没有异步队列与实时进度推送
+- 扫描已异步化并支持实时进度，但进度状态存在进程内存里：服务重启后正在跑的任务会丢失进度（任务表状态仍是"扫描中"），需要重新发起
+- 表格预览最多保留前 12 行（检测是流式的，预览不占用额外内存）；超大文件（>20MB）仍直接跳过
+- 大模型判定仍是"解析全部文件后批量送审"，因此进度条后半段停在「语义判定」，没有做到逐文件流式判定
 - 大模型只看文本，图片判定依赖 OCR 出来的文字；纯画面（如无文字照片）仍需人工看图
 - 复核结果只落库，未实现脱敏、打包、导出与交付链路（文档也明确演示阶段不做真实交易对接）
 - 演示用数据库口令写在 `application.yml` 默认值中，正式环境请用环境变量注入

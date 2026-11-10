@@ -46,6 +46,8 @@ data class ScanResult(
     var fileSize: Long = 0,
     var judgeSource: String = "rule",
     var judgeReason: String? = null,
+    var previewText: String? = null,
+    var previewKind: String? = null,
 )
 
 data class FolderRow(

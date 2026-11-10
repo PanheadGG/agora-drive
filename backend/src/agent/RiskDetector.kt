@@ -5,10 +5,10 @@ object RiskDetector {
 
     data class RiskInfo(val tag: String, val desc: String)
 
-    private val ID_CARD = Regex("""(?<!\d)(\d{17}[\dXx]|\d{15})(?!\d)""")
-    private val PHONE = Regex("""(?<!\d)(1[3-9]\d{9})(?!\d)""")
-    private val BANK_CARD = Regex("""(?<!\d)(\d{16,19})(?!\d)""")
-    private val WEB_COPY = listOf("小红书", "公众号", "转载", "来源网络", "搬运", "知乎", "微博", "侵权删", "下载自", "攻略网")
+    internal val ID_CARD = Regex("""(?<!\d)(\d{17}[\dXx]|\d{15})(?!\d)""")
+    internal val PHONE = Regex("""(?<!\d)(1[3-9]\d{9})(?!\d)""")
+    internal val BANK_CARD = Regex("""(?<!\d)(\d{16,19})(?!\d)""")
+    internal val WEB_COPY = listOf("小红书", "公众号", "转载", "来源网络", "搬运", "知乎", "微博", "侵权删", "下载自", "攻略网")
 
     fun detect(text: String): RiskInfo? {
         ID_CARD.find(text)?.let { return RiskInfo("身份证号", "正文中出现身份证号：" + mask(it.value)) }
@@ -21,6 +21,6 @@ object RiskDetector {
 
     fun copiedMarkers(text: String): List<String> = WEB_COPY.filter { text.contains(it) }
 
-    private fun mask(value: String): String =
+    internal fun mask(value: String): String =
         if (value.length <= 6) "*".repeat(value.length) else value.take(3) + "*".repeat(value.length - 6) + value.takeLast(3)
 }

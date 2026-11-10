@@ -321,3 +321,121 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- 扫描过程 ---------- */
+.scan-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 10px;
+  font-size: 14px;
+  color: var(--acd-text);
+}
+
+.scan-current {
+  font-size: 12px;
+  color: var(--acd-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scan-stats {
+  display: flex;
+  gap: 18px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--acd-text-2);
+}
+
+.scan-events {
+  margin-top: 14px;
+  max-height: 260px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.scan-event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--acd-surface-2);
+}
+
+.scan-event-name {
+  font-weight: 500;
+  color: var(--acd-text);
+  white-space: nowrap;
+}
+
+.scan-event-method {
+  color: var(--acd-text-2);
+  white-space: nowrap;
+}
+
+.scan-event-risk {
+  color: #f56c6c;
+  white-space: nowrap;
+}
+
+.scan-event-detail {
+  color: var(--acd-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- 预览抽屉 ---------- */
+.preview-pane {
+  min-height: 240px;
+}
+
+.preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.preview-risk {
+  font-size: 12px;
+  color: #f56c6c;
+}
+
+.preview-image {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.preview-table {
+  width: 100%;
+}
+
+.preview-text {
+  margin: 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--acd-surface-2);
+  color: var(--acd-text);
+  font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 70vh;
+  overflow: auto;
+}
+

@@ -40,6 +40,7 @@ data class ScanResultDto(
     val reviewNote: String?,
     val judgeSource: String = "rule",
     val judgeReason: String? = null,
+    val previewKind: String? = null,
 )
 
 data class ScanTaskDetailDto(
@@ -82,3 +83,48 @@ data class ScanTaskRowDto(
 )
 
 data class ReviewRequest(val review: Int = 0, val note: String = "")
+
+data class ScanStartDto(val taskId: Long, val taskStatus: Int, val statusLabel: String, val totalFileCount: Int)
+
+data class ScanEventDto(
+    val seq: Int,
+    val fileId: Long,
+    val fileName: String,
+    val stage: String,
+    val parseMethod: String?,
+    val ok: Boolean,
+    val riskTag: String?,
+    val detail: String?,
+    val at: Long,
+)
+
+data class ScanProgressDto(
+    val taskId: Long,
+    val taskStatus: Int,
+    val statusLabel: String,
+    val total: Int,
+    val processed: Int,
+    val success: Int,
+    val fail: Int,
+    val percent: Int,
+    val currentFile: String?,
+    val stage: String,
+    val elapsedMs: Long,
+    val done: Boolean,
+    val message: String?,
+    val events: List<ScanEventDto>,
+)
+
+data class ScanPreviewDto(
+    val resultId: Long,
+    val fileId: Long,
+    val fileName: String,
+    val kind: String,
+    val parseMethod: String?,
+    val text: String,
+    val header: List<String>,
+    val rows: List<List<String>>,
+    val riskTag: String?,
+    val riskDesc: String?,
+    val truncated: Boolean,
+)

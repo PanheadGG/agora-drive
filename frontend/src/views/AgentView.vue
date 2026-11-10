@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, VideoPlay } from '@element-plus/icons-vue'
@@ -16,10 +16,21 @@ const scanning = ref(false)
 const loading = ref(false)
 const report = ref(null)
 const llmStatus = ref({ llm: { available: false }, ocr: { available: null } })
+
+const progress = ref(null)
+const progressEvents = ref([])
+const showTimeline = ref(false)
+let pollTimer = null
+
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewData = ref(null)
+const previewImageUrl = ref('')
+
 const llmHint = computed(() => {
   const llm = llmStatus.value.llm || {}
   const ocr = llmStatus.value.ocr || {}
-  const llmText = llm.available ? 'DeepSeek 判定已启用（' + (llm.model || 'deepseek-chat') + '）' : '未配置 DeepSeek API Key，本次使用本地规则判定'
+  const llmText = llm.available ? '大模型判定已启用（' + (llm.model || 'deepseek-chat') + '）' : '未配置可用模型平台，使用本地规则判定'
   const ocrText = ocr.available === false ? '；图片 OCR 不可用' : '；图片走本机 OCR'
   return llmText + ocrText
 })
@@ -38,10 +49,7 @@ const treeData = computed(() => {
   return roots
 })
 
-const currentBounty = computed(
-  () => bounties.value.find((item) => item.id === selectedBounty.value) || null,
-)
-
+const currentBounty = computed(() => bounties.value.find((item) => item.id === selectedBounty.value) || null)
 const LEVEL_TYPE = { 3: 'success', 2: 'primary', 1: 'info', 0: 'info' }
 
 async function load() {
@@ -65,6 +73,37 @@ async function load() {
   }
 }
 
+function stopPolling() {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+async function poll(taskId) {
+  try {
+    const data = await api.agentProgress(taskId)
+    progress.value = data
+    if (data.events && data.events.length) progressEvents.value = data.events
+    if (data.done) {
+      stopPolling()
+      scanning.value = false
+      if (data.taskStatus === 2) {
+        report.value = await api.agentTask(taskId)
+        tasks.value = await api.agentTasks()
+        ElMessage.success('扫描完成，共处理 ' + data.total + ' 个文件')
+      } else {
+        ElMessage.error('扫描失败：' + (data.message || '未知错误'))
+      }
+      return
+    }
+    pollTimer = setTimeout(() => poll(taskId), 400)
+  } catch (error) {
+    stopPolling()
+    scanning.value = false
+  }
+}
+
 async function startScan() {
   if (!selectedBounty.value) {
     ElMessage.warning('请先选择一条悬赏')
@@ -76,17 +115,23 @@ async function startScan() {
     return
   }
   scanning.value = true
+  report.value = null
+  progress.value = null
+  progressEvents.value = []
+  showTimeline.value = false
   try {
-    report.value = await api.agentScan({ bountyId: selectedBounty.value, scopeFileIds: checked })
-    ElMessage.success('扫描完成，共处理 ' + report.value.totalFileCount + ' 个文件')
-    tasks.value = await api.agentTasks()
-  } finally {
+    const started = await api.agentScan({ bountyId: selectedBounty.value, scopeFileIds: checked })
+    progress.value = { taskId: started.taskId, taskStatus: 1, stage: '排队中', total: started.totalFileCount, processed: 0, percent: 0, events: [], done: false }
+    poll(started.taskId)
+  } catch (error) {
     scanning.value = false
   }
 }
 
 async function openTask(id) {
   report.value = await api.agentTask(id)
+  progress.value = null
+  progressEvents.value = []
 }
 
 async function review(item, value) {
@@ -96,7 +141,43 @@ async function review(item, value) {
   report.value = await api.agentTask(report.value.id)
 }
 
+function clearPreviewUrl() {
+  if (previewImageUrl.value) {
+    URL.revokeObjectURL(previewImageUrl.value)
+    previewImageUrl.value = ''
+  }
+}
+
+async function openPreview(item) {
+  previewVisible.value = true
+  previewLoading.value = true
+  previewData.value = null
+  clearPreviewUrl()
+  try {
+    const data = await api.agentPreview(item.id)
+    previewData.value = data
+    if (data.kind === 'image') {
+      const response = await api.content(data.fileId)
+      previewImageUrl.value = URL.createObjectURL(response.data)
+    }
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+function closePreview() {
+  clearPreviewUrl()
+  previewData.value = null
+}
+
+function eventType(event) {
+  if (event.riskTag) return 'danger'
+  if (!event.ok) return 'warning'
+  return 'success'
+}
+
 onMounted(load)
+onBeforeUnmount(stopPolling)
 </script>
 
 <template>
@@ -104,7 +185,7 @@ onMounted(load)
     <div class="page-head">
       <div>
         <h2>智能匹配 Agent</h2>
-        <p class="page-sub">先勾选授权扫描范围，Agent 会逐个打开文件解析真实内容，输出带证据与风险提示的推荐清单。</p>
+        <p class="page-sub">先勾选授权扫描范围，Agent 会逐个流式解析文件内容（表格走 EasyExcel 逐行、文档边解析边检测），输出带证据与风险提示的推荐清单。</p>
         <p class="llm-hint">{{ llmHint }}</p>
       </div>
       <div class="toolbar">
@@ -115,7 +196,7 @@ onMounted(load)
     <div class="agent-layout" v-loading="loading">
       <el-card shadow="never" class="agent-panel">
         <div class="panel-title">1. 选悬赏</div>
-        <el-select v-model="selectedBounty" placeholder="选择一条进行中的悬赏" style="width: 100%">
+        <el-select v-model="selectedBounty" placeholder="选择一条进行中的悬赏" style="width: 100%" :disabled="scanning">
           <el-option v-for="bounty in bounties" :key="bounty.id" :label="bounty.title" :value="bounty.id" />
         </el-select>
         <p v-if="currentBounty" class="panel-note">{{ currentBounty.rawDesc }}</p>
@@ -147,27 +228,80 @@ onMounted(load)
           :icon="VideoPlay"
           :loading="scanning"
           class="scan-button"
+          :disabled="scanning"
           @click="startScan"
-        >{{ scanning ? '正在解析文件内容…' : '开始扫描' }}</el-button>
+        >{{ scanning ? '正在扫描…' : '开始扫描' }}</el-button>
       </el-card>
 
       <div class="agent-report">
-        <el-card v-if="!report" shadow="never" class="agent-panel">
-          <el-empty description="选择悬赏并授权范围后开始扫描，这里会显示分级推荐报告" />
+        <!-- 扫描过程：实时进度 -->
+        <el-card v-if="scanning || (progress && !report)" shadow="never" class="agent-panel">
+          <div class="report-head">
+            <span class="report-title">正在扫描</span>
+            <span class="panel-note" v-if="progress">任务 #{{ progress.taskId }} · 已用时 {{ ((progress.elapsedMs || 0) / 1000).toFixed(1) }}s</span>
+          </div>
+
+          <div class="scan-stage">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>{{ progress?.stage || '准备中…' }}</span>
+            <span v-if="progress?.currentFile" class="scan-current">当前：{{ progress.currentFile }}</span>
+          </div>
+
+          <el-progress
+            :percentage="progress?.percent || 0"
+            :stroke-width="10"
+            :status="progress?.taskStatus === 3 ? 'exception' : undefined"
+          />
+          <div class="scan-stats">
+            <span>已处理 {{ progress?.processed || 0 }} / {{ progress?.total || 0 }}</span>
+            <span>解析成功 {{ progress?.success || 0 }}</span>
+            <span>跳过 {{ progress?.fail || 0 }}</span>
+          </div>
+
+          <div class="scan-events">
+            <div v-for="event in progressEvents.slice().reverse()" :key="event.seq" class="scan-event">
+              <el-tag size="small" :type="eventType(event)" effect="plain">{{ event.stage }}</el-tag>
+              <span class="scan-event-name">{{ event.fileName }}</span>
+              <span class="scan-event-method">{{ event.parseMethod }}</span>
+              <span v-if="event.riskTag" class="scan-event-risk">{{ event.riskTag }}</span>
+              <span class="scan-event-detail">{{ event.detail }}</span>
+            </div>
+            <div v-if="!progressEvents.length" class="panel-note">正在读取文件与上一阶段的解析结果…</div>
+          </div>
         </el-card>
 
-        <template v-else>
+        <el-card v-if="!scanning && !report" shadow="never" class="agent-panel">
+          <el-empty description="选择悬赏并授权范围后开始扫描，这里会实时显示解析过程与分级推荐报告" />
+        </el-card>
+
+        <template v-if="report && !scanning">
           <el-card shadow="never" class="agent-panel">
             <div class="report-head">
               <div>
                 <span class="report-title">{{ report.bountyTitle }}</span>
                 <el-tag size="small" type="success" effect="plain" style="margin-left: 8px">{{ report.statusLabel }}</el-tag>
               </div>
-              <span class="panel-note">任务 #{{ report.id }} · {{ report.createdAt }}</span>
+              <div class="report-head-right">
+                <span class="panel-note">任务 #{{ report.id }} · {{ report.createdAt }}</span>
+                <el-button v-if="progressEvents.length" text size="small" @click="showTimeline = !showTimeline">
+                  {{ showTimeline ? '收起扫描过程' : '查看扫描过程' }}
+                </el-button>
+              </div>
             </div>
 
+            <el-collapse-transition>
+              <div v-show="showTimeline" class="scan-events">
+                <div v-for="event in progressEvents" :key="event.seq" class="scan-event">
+                  <el-tag size="small" :type="eventType(event)" effect="plain">{{ event.stage }}</el-tag>
+                  <span class="scan-event-name">{{ event.fileName }}</span>
+                  <span class="scan-event-method">{{ event.parseMethod }}</span>
+                  <span v-if="event.riskTag" class="scan-event-risk">{{ event.riskTag }}</span>
+                </div>
+              </div>
+            </el-collapse-transition>
+
             <p class="llm-hint" style="margin-top: 8px">
-              {{ report.llmUsed ? ('本次 ' + report.llmJudgedCount + ' 个文件由 DeepSeek 语义判定（' + (report.llmModel || 'deepseek-chat') + '）') : '本次使用本地规则判定' }}
+              {{ report.llmUsed ? ('本次 ' + report.llmJudgedCount + ' 个文件由大模型语义判定（' + (report.llmModel || 'deepseek-chat') + '）') : '本次使用本地规则判定' }}
             </p>
 
             <div class="stat-row">
@@ -194,14 +328,19 @@ onMounted(load)
           <el-card shadow="never" class="agent-panel">
             <h4>三、已实际解析的文件清单</h4>
             <el-table :data="report.parsedList" size="small" class="report-table">
-              <el-table-column prop="fileName" label="文件" min-width="180" />
-              <el-table-column prop="parseMethod" label="解析方式" width="140" />
-              <el-table-column prop="parsedSummary" label="解析出的内容要点" min-width="300" show-overflow-tooltip />
-              <el-table-column label="判定来源" width="110">
+              <el-table-column prop="fileName" label="文件" min-width="170" />
+              <el-table-column prop="parseMethod" label="解析方式" width="150" />
+              <el-table-column prop="parsedSummary" label="解析出的内容要点" min-width="240" show-overflow-tooltip />
+              <el-table-column label="判定来源" width="100">
                 <template #default="{ row }">
                   <el-tag size="small" :type="row.judgeSource === 'llm' ? 'success' : 'info'" effect="plain">
-                    {{ row.judgeSource === 'llm' ? 'DeepSeek' : '本地规则' }}
+                    {{ row.judgeSource === 'llm' ? '大模型' : '本地规则' }}
                   </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="90">
+                <template #default="{ row }">
+                  <el-button text size="small" @click="openPreview(row)">预览</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -216,9 +355,10 @@ onMounted(load)
                 <span class="rec-name">{{ item.fileName }}</span>
                 <span class="rec-size">{{ formatBytes(item.fileSize) }}</span>
                 <el-tag size="small" :type="item.judgeSource === 'llm' ? 'success' : 'info'" effect="plain">
-                  {{ item.judgeSource === 'llm' ? 'DeepSeek' : '本地规则' }}
+                  {{ item.judgeSource === 'llm' ? '大模型' : '本地规则' }}
                 </el-tag>
                 <div class="rec-actions">
+                  <el-button size="small" text @click="openPreview(item)">预览</el-button>
                   <el-button size="small" :type="item.userReview === 1 ? 'success' : 'default'" @click="review(item, 1)">确认可用</el-button>
                   <el-button size="small" text @click="review(item, 2)">驳回</el-button>
                   <el-tag v-if="item.userReview === 1" size="small" type="success" effect="plain">已确认</el-tag>
@@ -237,12 +377,14 @@ onMounted(load)
               <el-tag size="small" type="danger" effect="plain">{{ item.riskTag }}</el-tag>
               <span class="rec-name">{{ item.fileName }}</span>
               <span class="report-text">{{ item.riskDesc }}</span>
+              <el-button text size="small" @click="openPreview(item)">预览</el-button>
             </div>
             <div v-if="report.skipped.length" class="skipped-block">
               <div class="panel-note">本次未能解析（如实说明，未编造结论）：</div>
               <div v-for="item in report.skipped" :key="item.id" class="skipped-item">
                 <span class="rec-name">{{ item.fileName }}</span>
                 <span class="report-text">{{ item.parsedSummary }}</span>
+                <el-button text size="small" @click="openPreview(item)">预览</el-button>
               </div>
             </div>
           </el-card>
@@ -260,12 +402,12 @@ onMounted(load)
     <el-card shadow="never" class="agent-panel history-panel">
       <h4>我的扫描记录</h4>
       <el-table :data="tasks" size="small" class="report-table">
-        <el-table-column prop="id" label="任务" width="80" />
+        <el-table-column prop="id" label="任务" width="70" />
         <el-table-column prop="bountyTitle" label="悬赏" min-width="220" />
-        <el-table-column prop="statusLabel" label="状态" width="100" />
-        <el-table-column prop="totalFileCount" label="文件数" width="90" />
-        <el-table-column prop="successParseCount" label="解析成功" width="100" />
-        <el-table-column prop="createdAt" label="创建时间" width="180" />
+        <el-table-column prop="statusLabel" label="状态" width="90" />
+        <el-table-column prop="totalFileCount" label="文件数" width="80" />
+        <el-table-column prop="successParseCount" label="解析成功" width="90" />
+        <el-table-column prop="createdAt" label="创建时间" width="170" />
         <el-table-column label="操作" width="100">
           <template #default="{ row }">
             <el-button text size="small" @click="openTask(row.id)">查看报告</el-button>
@@ -273,5 +415,35 @@ onMounted(load)
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-drawer v-model="previewVisible" :title="previewData?.fileName || '内容预览'" size="56%" @closed="closePreview">
+      <div v-loading="previewLoading" class="preview-pane">
+        <template v-if="previewData">
+          <div class="preview-meta">
+            <el-tag size="small" effect="plain">{{ previewData.parseMethod || '未解析' }}</el-tag>
+            <el-tag v-if="previewData.riskTag" size="small" type="danger" effect="plain">{{ previewData.riskTag }}</el-tag>
+            <span class="preview-risk" v-if="previewData.riskDesc">{{ previewData.riskDesc }}</span>
+          </div>
+
+          <img v-if="previewData.kind === 'image' && previewImageUrl" :src="previewImageUrl" class="preview-image" :alt="previewData.fileName" />
+
+          <el-table v-else-if="previewData.kind === 'table'" :data="previewData.rows" size="small" border class="preview-table" max-height="62vh">
+            <el-table-column
+              v-for="(title, index) in previewData.header"
+              :key="index"
+              :label="title || ('列 ' + (index + 1))"
+              min-width="120"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">{{ row[index] }}</template>
+            </el-table-column>
+          </el-table>
+
+          <pre v-else class="preview-text">{{ previewData.text || '（无可预览文本）' }}</pre>
+
+          <p v-if="previewData.truncated" class="panel-note">内容较长，预览已截断。</p>
+        </template>
+      </div>
+    </el-drawer>
   </main>
 </template>

@@ -46,6 +46,19 @@ $testBountyId = $created.body.data.id
 $bounties = Call-Api "GET" "/bounty" $entToken
 Check "bounty list" (@($bounties.body.data).Count -ge 5) $bounties.body
 
+# 扫描是异步的：POST 立即返回 taskId，这里轮询进度直到结束再取报告
+function Start-Scan($token, $bountyId, $scopeIds) {
+    $started = Call-Api "POST" "/agent/scan" $token @{ bountyId = $bountyId; scopeFileIds = $scopeIds }
+    $taskId = $started.body.data.taskId
+    $deadline = (Get-Date).AddSeconds(120)
+    while ((Get-Date) -lt $deadline) {
+        $p = Call-Api "GET" ("/agent/tasks/" + $taskId + "/progress") $token
+        if ($p.body.data.done) { break }
+        Start-Sleep -Milliseconds 300
+    }
+    return (Call-Api "GET" ("/agent/tasks/" + $taskId) $token)
+}
+
 $allBounties = Call-Api "GET" "/bounty" $entToken
 $commuteBounty = ($allBounties.body.data | Where-Object { $_.title -like "*R-05*" } | Select-Object -First 1).id
 $hikingBounty = ($allBounties.body.data | Where-Object { $_.title -like "*R-02*" } | Select-Object -First 1).id
@@ -56,12 +69,13 @@ Check "folder scope list" (@($folders.body.data).Count -ge 2) $folders.body
 $tidy = ($folders.body.data | Where-Object { $_.name -eq "个人整理" }).id
 $shots = ($folders.body.data | Where-Object { $_.name -eq "随手拍" }).id
 
-$scan = Call-Api "POST" "/agent/scan" $demoToken @{ bountyId = $commuteBounty; scopeFileIds = @($tidy) }
+$scan = Start-Scan $demoToken $commuteBounty @($tidy)
 Check "scan runs" ($scan.status -eq 200 -and $scan.body.data.taskStatus -eq 2) $scan.body
 $report = $scan.body.data
 Check "scan scope recorded" ($report.scopeNames -contains "个人整理") $report.scopeNames
 Check "content actually parsed" ($report.successParseCount -ge 6) $report.successParseCount
 Check "parsed list has methods" (@($report.parsedList | Where-Object { $_.parseMethod -ne "未解析" }).Count -ge 6) $report.parsedList
+Check "streaming parsers used" (@($report.parsedList | Where-Object { $_.parseMethod -like "*流式*" }).Count -ge 6) $report.parsedList
 Check "recommendation with evidence" (@($report.recommendations | Where-Object { $_.evidenceText }).Count -ge 1) $report.recommendations
 Check "phone risk detected" (@($report.highRisk | Where-Object { $_.riskTag -eq "手机号" }).Count -eq 1) $report.highRisk
 Check "web-copied excluded" (@($report.highRisk | Where-Object { $_.riskTag -eq "网络搬运" }).Count -eq 1) $report.highRisk
@@ -69,12 +83,12 @@ Check "excluded files not recommended" (@($report.recommendations | Where-Object
 Check "review tips present" (@($report.reviewTips).Count -ge 2) $report.reviewTips
 Check "understanding restated" ($report.understanding.Length -gt 20) $report.understanding
 
-$scanShots = Call-Api "POST" "/agent/scan" $demoToken @{ bountyId = $hikingBounty; scopeFileIds = @($shots) }
+$scanShots = Start-Scan $demoToken $hikingBounty @($shots)
 $reportShots = $scanShots.body.data
 Check "real content parsing (OCR/PDF/ZIP)" (
     @($reportShots.parsedList | Where-Object { $_.parseMethod -like "图片 OCR*" }).Count -ge 3 -and
     @($reportShots.parsedList | Where-Object { $_.parseMethod -like "受控解包*" }).Count -eq 1 -and
-    @($reportShots.parsedList | Where-Object { $_.parseMethod -eq "PDF 抽文本" }).Count -eq 1
+    @($reportShots.parsedList | Where-Object { $_.parseMethod -like "PDF 抽文本*" }).Count -eq 1
 ) $reportShots.parsedList
 Check "pdf sensitive info detected" (@($reportShots.highRisk | Where-Object { $_.fileName -eq "体检单扫描件.pdf" }).Count -eq 1) $reportShots.highRisk
 Check "image content matched by OCR" (@($reportShots.recommendations | Where-Object { $_.fileName -like "*.png" }).Count -ge 1) $reportShots.recommendations

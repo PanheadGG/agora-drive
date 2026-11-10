@@ -9,21 +9,25 @@ import com.pgigi.agentclouddisk.mapper.UserFileMapper
 import com.pgigi.agentclouddisk.model.FileRow
 import com.pgigi.agentclouddisk.model.FolderNodeDto
 import com.pgigi.agentclouddisk.model.ReviewRequest
+import com.pgigi.agentclouddisk.model.ScanEventDto
+import com.pgigi.agentclouddisk.model.ScanPreviewDto
+import com.pgigi.agentclouddisk.model.ScanProgressDto
 import com.pgigi.agentclouddisk.model.ScanRequest
 import com.pgigi.agentclouddisk.model.ScanResult
 import com.pgigi.agentclouddisk.model.ScanResultDto
+import com.pgigi.agentclouddisk.model.ScanStartDto
 import com.pgigi.agentclouddisk.model.ScanTaskDetailDto
 import com.pgigi.agentclouddisk.model.ScanTaskRowDto
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import java.util.concurrent.ExecutorService
 
 /**
- * Agent 扫描链路：授权范围 → 逐文件真实内容解析 → 本机敏感信息兜底 → DeepSeek 语义判定 → 证据化推荐 → 审计留痕。
- * 1. 只扫描用户勾选的范围；
- * 2. 本机检测到身份证/手机号/银行卡或网络搬运特征的文件不外发，直接按规则判为高风险；
- * 3. 其余文件交给 DeepSeek 判定，证据必须能在解析正文中出现，否则退回本地片段；
- * 4. 没有可用 API Key 时整体降级为本地关键词规则，功能仍可跑通。
+ * Agent 扫描链路（异步 + 可观测）：
+ * 授权范围 → 逐文件流式解析与敏感检测（含 EasyExcel 表格流式、docx 流式）→ 本机敏感信息兜底
+ * → DeepSeek 语义判定 → 证据化推荐 → 审计留痕。
+ *
+ * 接口立即返回 taskId，扫描在独立线程池里跑，前端轮询进度接口实时看到"正在解析哪个文件、走到哪一步"。
  */
 @Service
 class AgentScanService(
@@ -35,6 +39,8 @@ class AgentScanService(
     private val matchJudge: LlmMatchJudge,
     private val llmClient: LlmClient,
     private val ocrService: OcrService,
+    private val progressRegistry: ScanProgressRegistry,
+    private val scanExecutor: ExecutorService,
 ) {
 
     private val log = LoggerFactory.getLogger(AgentScanService::class.java)
@@ -51,8 +57,8 @@ class AgentScanService(
         "ocr" to ocrService.status(),
     )
 
-    @Transactional
-    fun startScan(userId: Long, req: ScanRequest): ScanTaskDetailDto {
+    /** 只做校验与建任务，真正的扫描丢到线程池，接口立刻返回 */
+    fun startScan(userId: Long, req: ScanRequest): ScanStartDto {
         if (req.scopeFileIds.isEmpty()) throw ApiException(400, "请先选择授权扫描的文件夹或文件")
         val bounty = bountyMapper.findById(req.bountyId) ?: throw ApiException(404, "悬赏不存在")
         if (bounty.status != 1) throw ApiException(400, "该悬赏已停用，无法发起扫描")
@@ -69,65 +75,109 @@ class AgentScanService(
 
         val scopeJson = req.scopeFileIds.distinct().joinToString(",", "[", "]")
         val taskId = scanTaskMapper.insert(req.bountyId, userId, scopeJson)
+        val progress = progressRegistry.create(taskId, files.size)
+        progress.stage = "排队中"
 
-        data class Pending(
-            val row: FileRow,
-            val parsed: FileContentParser.ParsedFile,
-            val localRisk: RiskDetector.RiskInfo?,
-            val copied: Boolean,
-        )
+        scanExecutor.submit { runScan(taskId, requirement, files.values.toList(), progress) }
+        log.info("scan task {} submitted, files={}", taskId, files.size)
+        return ScanStartDto(taskId, 1, "扫描中", files.size)
+    }
 
-        val pendings = files.values.map { row ->
-            val parsed = contentParser.parse(row.sha256, row.fileName, row.totalSize)
-            Pending(
-                row = row,
-                parsed = parsed,
-                localRisk = if (parsed.ok) RiskDetector.detect(parsed.text) else null,
-                copied = parsed.ok && RiskDetector.isWebCopied(parsed.text),
+    private fun runScan(
+        taskId: Long,
+        requirement: BountyStructureParser.Requirement,
+        files: List<FileRow>,
+        progress: ScanProgressRegistry.Progress,
+    ) {
+        try {
+            progress.status = 1
+            scanTaskMapper.updateProgress(taskId, 1, files.size, 0, 0)
+
+            data class Pending(
+                val row: FileRow,
+                val parsed: FileContentParser.ParsedFile,
             )
-        }
 
-        val candidates = pendings.filter { it.parsed.ok && it.localRisk == null && !it.copied }
-        val llmVerdicts = if (matchJudge.available && candidates.isNotEmpty()) {
-            matchJudge.judge(
-                requirement,
-                candidates.map { pending ->
-                    LlmMatchJudge.Item(
-                        fileId = pending.row.id ?: 0,
-                        fileName = pending.row.fileName,
-                        parseMethod = pending.parsed.method,
-                        text = pending.parsed.text,
-                    )
-                },
-            )
-        } else {
-            emptyMap()
-        }
+            val pendings = ArrayList<Pending>(files.size)
+            var index = 0
+            for (row in files) {
+                index++
+                progress.currentFile = row.fileName
+                progress.stage = "解析内容（" + index + "/" + files.size + "）"
+                val parsed = contentParser.parse(row.sha256, row.fileName, row.totalSize)
+                pendings += Pending(row, parsed)
 
-        var success = 0
-        var fail = 0
-        for (pending in pendings) {
-            val fileId = pending.row.id ?: 0
-            val verdict = resolveVerdict(pending.parsed, pending.localRisk, pending.copied, requirement, llmVerdicts[fileId])
-            scanResultMapper.insert(
-                taskId,
-                fileId,
-                verdict.level,
-                if (pending.parsed.ok) 0 else 1,
-                pending.parsed.method,
-                pending.parsed.summary.ifEmpty { pending.parsed.note ?: "" },
-                verdict.evidence,
-                verdict.riskTag,
-                verdict.riskDesc,
-                verdict.source,
-                verdict.reason,
-            )
-            if (pending.parsed.ok) success++ else fail++
-        }
+                val riskTag = parsed.risk?.tag ?: if (parsed.copied) "网络搬运" else null
+                if (parsed.ok) progress.success++ else progress.fail++
+                progress.processed = index
+                progress.addEvent(
+                    fileId = row.id ?: 0,
+                    fileName = row.fileName,
+                    stage = if (parsed.ok) "解析完成" else "跳过",
+                    parseMethod = parsed.method,
+                    ok = parsed.ok,
+                    riskTag = riskTag,
+                    detail = if (parsed.ok) parsed.summary.take(80) else parsed.note,
+                )
+            }
 
-        scanTaskMapper.updateProgress(taskId, 2, files.size, success, fail)
-        log.info("scan task {} done: files={} parsed={} failed={} llmJudged={}", taskId, files.size, success, fail, llmVerdicts.size)
-        return detail(taskId, userId, Roles.USER)
+            val candidates = pendings.filter { it.parsed.ok && it.parsed.risk == null && !it.parsed.copied }
+            val llmApplied = matchJudge.available && candidates.isNotEmpty()
+            if (llmApplied) {
+                progress.stage = "语义判定（" + candidates.size + " 个文件交给大模型）"
+                progress.currentFile = null
+            }
+            val llmVerdicts = if (llmApplied) {
+                matchJudge.judge(
+                    requirement,
+                    candidates.map { pending ->
+                        LlmMatchJudge.Item(
+                            fileId = pending.row.id ?: 0,
+                            fileName = pending.row.fileName,
+                            parseMethod = pending.parsed.method,
+                            text = pending.parsed.text,
+                        )
+                    },
+                )
+            } else {
+                emptyMap()
+            }
+
+            progress.stage = "写入结果"
+            var success = 0
+            var fail = 0
+            for (pending in pendings) {
+                val fileId = pending.row.id ?: 0
+                val verdict = resolveVerdict(pending.parsed, requirement, llmVerdicts[fileId])
+                scanResultMapper.insert(
+                    taskId,
+                    fileId,
+                    verdict.level,
+                    if (pending.parsed.ok) 0 else 1,
+                    pending.parsed.method,
+                    pending.parsed.summary.ifEmpty { pending.parsed.note ?: "" },
+                    verdict.evidence,
+                    verdict.riskTag,
+                    verdict.riskDesc,
+                    verdict.source,
+                    verdict.reason,
+                    pending.parsed.previewText.ifEmpty { pending.parsed.note ?: "" },
+                    pending.parsed.previewKind,
+                )
+                if (pending.parsed.ok) success++ else fail++
+            }
+
+            scanTaskMapper.updateProgress(taskId, 2, files.size, success, fail)
+            progress.processed = files.size
+            progress.success = success
+            progress.fail = fail
+            progress.finish(2)
+            log.info("scan task {} done: files={} parsed={} failed={} llmJudged={}", taskId, files.size, success, fail, llmVerdicts.size)
+        } catch (error: Exception) {
+            log.error("scan task {} failed", taskId, error)
+            runCatching { scanTaskMapper.updateProgress(taskId, 3, files.size, progress.success, progress.fail) }
+            progress.finish(3, error.message ?: error.javaClass.simpleName)
+        }
     }
 
     private data class Verdict(
@@ -141,8 +191,6 @@ class AgentScanService(
 
     private fun resolveVerdict(
         parsed: FileContentParser.ParsedFile,
-        localRisk: RiskDetector.RiskInfo?,
-        copied: Boolean,
         requirement: BountyStructureParser.Requirement,
         llmVerdict: LlmMatchJudge.Judgement?,
     ): Verdict {
@@ -151,22 +199,22 @@ class AgentScanService(
         val localHits = requirement.matchKeywords.filter { parsed.text.contains(it) }
         val localEvidence = snippet(parsed.text, localHits.firstOrNull())
 
-        if (localRisk != null) {
+        parsed.risk?.let { risk ->
             return Verdict(
                 level = 0,
                 evidence = localEvidence,
-                riskTag = localRisk.tag,
-                riskDesc = localRisk.desc + "（本机检出，正文未外发；高风险，不建议直接提交）",
+                riskTag = risk.tag,
+                riskDesc = risk.desc + "（本机流式检测命中，正文未外发；高风险，不建议直接提交）",
                 source = "rule",
                 reason = "本机敏感信息检测命中，未送模型判定",
             )
         }
-        if (copied) {
+        if (parsed.copied) {
             return Verdict(
                 level = 0,
                 evidence = localEvidence,
                 riskTag = "网络搬运",
-                riskDesc = "解析到搬运特征：" + RiskDetector.copiedMarkers(parsed.text).joinToString("、") + "，按规则排除",
+                riskDesc = "解析到搬运特征：" + parsed.copiedMarkers.joinToString("、") + "，按规则排除",
                 source = "rule",
                 reason = "本机搬运特征检测命中",
             )
@@ -218,6 +266,85 @@ class AgentScanService(
         return text.substring(start, end).replace(Regex("""\s+"""), " ").trim()
     }
 
+    // ---------- 进度 ----------
+
+    fun progress(taskId: Long, userId: Long, role: Int): ScanProgressDto {
+        val task = scanTaskMapper.findById(taskId) ?: throw ApiException(404, "扫描任务不存在")
+        if (role != Roles.ADMIN && task.userId != userId) throw ApiException(403, "无权查看该扫描任务")
+
+        val live = progressRegistry.get(taskId)
+        val status = live?.status ?: task.taskStatus
+        val total = live?.total ?: task.totalFileCount
+        val processed = live?.processed ?: if (task.taskStatus >= 2) task.totalFileCount else 0
+        val success = live?.success ?: task.successParseCount
+        val fail = live?.fail ?: task.failParseCount
+        val startedAt = live?.startedAt ?: System.currentTimeMillis()
+        val finishedAt = live?.finishedAt
+        val elapsed = if (finishedAt != null) finishedAt - startedAt else (System.currentTimeMillis() - startedAt)
+
+        return ScanProgressDto(
+            taskId = taskId,
+            taskStatus = status,
+            statusLabel = statusLabel(status),
+            total = total,
+            processed = processed,
+            success = success,
+            fail = fail,
+            percent = if (total == 0) 0 else (processed * 100 / total).coerceIn(0, 100),
+            currentFile = live?.currentFile,
+            stage = live?.stage ?: statusLabel(status),
+            elapsedMs = elapsed,
+            done = status == 2 || status == 3,
+            message = live?.message,
+            events = live?.events?.map {
+                ScanEventDto(it.seq, it.fileId, it.fileName, it.stage, it.parseMethod, it.ok, it.riskTag, it.detail, it.at)
+            } ?: emptyList(),
+        )
+    }
+
+    // ---------- 预览 ----------
+
+    fun preview(userId: Long, role: Int, resultId: Long): ScanPreviewDto {
+        val result = scanResultMapper.findById(resultId) ?: throw ApiException(404, "匹配结果不存在")
+        val task = scanTaskMapper.findById(result.scanTaskId) ?: throw ApiException(404, "扫描任务不存在")
+        if (role != Roles.ADMIN && task.userId != userId) throw ApiException(403, "只能查看自己的扫描结果")
+
+        val row = userFileMapper.findRow(result.userFileId, task.userId)
+            ?: throw ApiException(404, "文件已删除，无法预览")
+        val fileName = result.fileName ?: row.fileName
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        val isImage = ext in IMAGE_EXTS
+
+        val kind = when {
+            isImage -> "image"
+            result.previewKind == "table" -> "table"
+            else -> "text"
+        }
+        val text = result.previewText.orEmpty()
+        val tableLines = if (kind == "table") text.lineSequence().filter { it.isNotBlank() }.toList() else emptyList()
+        val header = tableLines.firstOrNull()?.split(" | ")?.map { it.trim() } ?: emptyList()
+        val rows = tableLines.drop(1).map { line ->
+            val cells = line.split(" | ").map { it.trim() }
+            if (cells.size >= header.size) cells else cells + List(header.size - cells.size) { "" }
+        }
+
+        return ScanPreviewDto(
+            resultId = resultId,
+            fileId = result.userFileId,
+            fileName = fileName,
+            kind = kind,
+            parseMethod = result.parseMethod,
+            text = text,
+            header = header,
+            rows = rows,
+            riskTag = result.riskTag,
+            riskDesc = result.riskDesc,
+            truncated = text.length >= 6000,
+        )
+    }
+
+    // ---------- 报告 ----------
+
     fun detail(taskId: Long, userId: Long, role: Int): ScanTaskDetailDto {
         val task = scanTaskMapper.findById(taskId) ?: throw ApiException(404, "扫描任务不存在")
         if (role != Roles.ADMIN && task.userId != userId) throw ApiException(403, "无权查看该扫描任务")
@@ -250,9 +377,9 @@ class AgentScanService(
             }
             if (recommendations.isEmpty()) add("本次没有推荐条目，可扩大授权范围或换一条悬赏再试")
             if (llmJudged > 0) {
-                add("本次有 " + llmJudged + " 个文件由 DeepSeek 语义判定，证据已校验必须出现在解析正文中")
+                add("本次有 " + llmJudged + " 个文件由大模型语义判定，证据已校验必须出现在解析正文中")
             } else {
-                add("本次判定使用本地规则（未配置 DeepSeek API Key 或调用失败），配置后可获得更好的语义判断")
+                add("本次判定使用本地规则（未配置可用模型平台或调用失败），配置后可获得更好的语义判断")
             }
             add("Agent 只做推荐，不会自动提交或对外分发；确认可用后请自行脱敏再交付")
         }
@@ -316,6 +443,7 @@ class AgentScanService(
         reviewNote = reviewNote,
         judgeSource = judgeSource,
         judgeReason = judgeReason,
+        previewKind = previewKind,
     )
 
     private fun com.pgigi.agentclouddisk.model.ScanTask.toRowDto() = ScanTaskRowDto(
@@ -333,6 +461,8 @@ class AgentScanService(
     )
 
     companion object {
+        private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
+
         fun matchLabel(level: Int): String = when (level) {
             3 -> "高匹配"
             2 -> "中匹配"
