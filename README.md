@@ -110,13 +110,23 @@ $env:APP_MASTER_KEY = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Ra
 | xlsx / xls | **EasyExcel 逐行读取**，每行实时送敏感扫描器，只留表头 + 前 12 行做预览 | `FileContentParser.parseXlsx` + `StreamingSensitiveScanner` |
 | docx | **StAX 流式解析** `word/document.xml`，逐段喂扫描器 | `parseDocxStream` |
 | txt / md / csv / json / 代码 | 8KB 字符块流式读取 | `parseText` |
-| pdf | 抽文本后**分块**扫描 | `PdfTextExtractor` + 分块 |
+| pdf | 手写解析内容流字面量（不用正则、不递归），跳过图片/字体/元数据二进制流，抽文本后分块扫描 | `PdfTextExtractor` |
 | png / jpg | Windows.Media.Ocr 本机 OCR，汉字间空格归一 | `OcrService` |
 | zip | 受控解包，内层文本流式读、图片按需 OCR（最多 3 张） | `parseZip` |
 
 `StreamingSensitiveScanner` 保留 32 字符尾部重叠窗口，**跨块边界被截断的身份证/手机号/银行卡号也能命中**；同时流式识别小红书/公众号/转载等搬运特征。
 
 > 实测：`微信账单导出.xlsx`（含手机号）与 `长沙攻略下载.docx`（含搬运特征）在扫描过程中就被标记为高风险，不会进入大模型判定，也不会外发正文。
+
+**PDF 解析的健壮性修复**：早期实现用正则 `\((?:[^()\\]|\\.)*\)` 直接扫每个 stream，遇到几百 KB 的图片流会触发 Java 正则递归回溯，抛 `StackOverflowError`（真实案例：1.9MB 的 `USCDCAKJFDBFBNBKBNC.pdf`）。现在改为：
+
+1. 用 `indexOf` 定位 stream / endstream，不再对整份文件跑惰性正则；
+2. 只处理"像页面内容流"的流（含 `BT` 且含 `Tj`/`TJ`），图片、嵌入字体、元数据流直接跳过；
+3. 字面量字符串改**手写循环**解析（支持转义与八进制），完全不用正则、不递归；
+4. 单流、总流数、输出长度都有上限；
+5. 仍解析不了时给出可读原因，而不是把 `StackOverflowError` 抛给用户。
+
+对"嵌入子集字体、未做逐字体 ToUnicode 重映射"的 PDF，抽出来只是字形码，此时会**如实标记为未解析**（"只抽到少量字形码，内容不可靠，已跳过判定"），不会把乱码喂给大模型。
 
 演示文件全部是**真实生成**的可打开文件（`agent/DemoContentFactory.kt`）：docx/xlsx 是标准 OOXML 包，PDF 带正确 xref 且可被抽文本，PNG 用 Java2D 现场绘制并带可 OCR 的文字，ZIP 内含真实图片。
 
@@ -287,6 +297,7 @@ Agent 协同：
 ## 九、已知限制
 
 - 图片 OCR 依赖 Windows 自带识别引擎（本机离线可用），只识别画面文字，不做图像语义理解；扫描件类 PDF 仍需先转图片再 OCR
+- PDF 没有实现逐字体的 ToUnicode 重映射：使用嵌入子集字体的 PDF（中文常见）只能抽到字形码，会被标记为"未解析"而不是输出乱码；要彻底解决需要接 Apache PDFBox 或按 `Tf` 跟踪字体资源
 - 文件摘要向量召回（`file_embedding`）未实现：Demo 用「授权范围全量遍历 + LLM/关键词判定」，授权范围是几十个文件的量级
 - 扫描已异步化并支持实时进度，但进度状态存在进程内存里：服务重启后正在跑的任务会丢失进度（任务表状态仍是"扫描中"），需要重新发起
 - 表格预览最多保留前 12 行（检测是流式的，预览不占用额外内存）；超大文件（>20MB）仍直接跳过

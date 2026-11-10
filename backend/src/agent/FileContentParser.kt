@@ -50,17 +50,24 @@ class FileContentParser(
         if (size > MAX_SIZE) return fail("文件超过 Demo 解析上限（10MB），跳过")
 
         val ext = fileName.substringAfterLast('.', "").lowercase()
-        return runCatching {
+        return try {
             when (ext) {
                 in TEXT_EXTS -> parseText(path)
                 "docx" -> parseDocx(path)
                 "xlsx", "xls" -> parseXlsx(path)
-                "pdf" -> parsePdf(path)
+                "pdf" -> parsePdf(path, size)
                 "zip" -> parseZip(path)
                 in IMAGE_EXTS -> parseImage(path)
                 else -> fail("暂不支持解析该格式（." + ext + "）")
             }
-        }.getOrElse { fail("解析异常：" + (it.message ?: it.javaClass.simpleName)) }
+        } catch (error: StackOverflowError) {
+            // 例如 PDF 里的畸形/超大二进制流导致递归回溯
+            fail("文件内部结构异常（解析栈溢出），已跳过该文件，不影响其他文件")
+        } catch (error: OutOfMemoryError) {
+            fail("文件过大导致内存不足，已跳过该文件")
+        } catch (error: Throwable) {
+            fail("解析异常：" + (error.message ?: error.javaClass.simpleName))
+        }
     }
 
     // ---------- 文本 ----------
@@ -178,10 +185,14 @@ class FileContentParser(
 
     // ---------- PDF ----------
 
-    private fun parsePdf(path: Path): ParsedFile {
+    private fun parsePdf(path: Path, fileSize: Long): ParsedFile {
         val extracted = PdfTextExtractor.extract(path)
+        if (extracted.isEmpty()) return fail("PDF 未抽取到文本（扫描件/纯图片或结构异常），跳过")
         if (!PdfTextExtractor.looksTextBased(extracted)) {
             return fail("PDF 未抽取到文本（可能是扫描件/加密或纯图片 PDF），跳过")
+        }
+        if (!PdfTextExtractor.looksReliable(extracted, fileSize)) {
+            return fail("PDF 文本层使用嵌入子集字体（未做逐字体重映射）或为扫描件，只抽到少量字形码，内容不可靠，已跳过判定")
         }
         val scanner = StreamingSensitiveScanner()
         var offset = 0

@@ -75,6 +75,13 @@ check('docx preview has content', docPreview.text.length > 20, docPreview.text?.
 const sensitive = detail.highRisk.find((r) => r.riskTag === '手机号')
 check('streaming detection found phone in xlsx', !!sensitive, detail.highRisk.map((r) => r.riskTag))
 
+// 3.5 解析健壮性：不允许出现解析器崩溃（StackOverflowError / OutOfMemoryError）
+const allResults = [...detail.parsedList, ...detail.skipped]
+const crashed = allResults.filter((r) => /StackOverflowError|OutOfMemoryError|解析异常/.test(r.parsedSummary || ''))
+check('no parser crash in results', crashed.length === 0, crashed.map((r) => r.fileName + ':' + r.parsedSummary))
+const pdfResults = allResults.filter((r) => r.fileName.toLowerCase().endsWith('.pdf'))
+check('pdf results carry explanation', pdfResults.every((r) => (r.parsedSummary || '').length > 5), pdfResults.map((r) => r.parsedSummary))
+
 // 4. 权限：他人不能看
 const ent = await call('POST', '/auth/login', null, { username: 'enterprise', password: 'ent12345' })
 const forbidden = await call('GET', '/agent/results/' + tableItem.id + '/preview', ent.body.data.token)
