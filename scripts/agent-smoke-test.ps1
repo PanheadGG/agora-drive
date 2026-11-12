@@ -3,6 +3,9 @@
 # 用法：先启动后端，再执行 powershell -ExecutionPolicy Bypass -File scripts/agent-smoke-test.ps1
 # 说明：脚本会临时创建一条测试悬赏，结束时自动停用。
 $ErrorActionPreference = "Stop"
+# PS 5.1 下 curl 输出按 OEM 代码页解码会导致中文 JSON 破坏，这里强制 UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $Base = "http://127.0.0.1:8080/api"
 $script:fail = 0
 

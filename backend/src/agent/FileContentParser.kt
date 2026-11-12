@@ -41,6 +41,8 @@ class FileContentParser(
         val previewText: String = "",
         val previewKind: String = "text",
         val truncated: Boolean = false,
+        /** 图片类文件：本地绝对路径，供视觉模型识图使用；非图片为 null */
+        val imagePath: String? = null,
     )
 
     fun parse(sha256: String?, fileName: String, size: Long): ParsedFile {
@@ -259,10 +261,24 @@ class FileContentParser(
 
     private fun parseImage(path: Path): ParsedFile {
         val text = ocr.recognize(path)
-        if (text.isNullOrBlank()) return fail("图片未识别出文字（OCR 无结果或引擎不可用），不参与内容判定")
+        if (text.isNullOrBlank()) {
+            // OCR 没有文字不代表图片无关（白板、纯画面），标记为需要视觉模型判断
+            return ParsedFile(
+                ok = false,
+                method = "图片（OCR 无文字）",
+                text = "",
+                summary = "",
+                note = "图片未识别出文字（OCR 无结果或引擎不可用），需视觉模型判断画面内容",
+                previewKind = "image",
+                imagePath = path.toAbsolutePath().toString(),
+            )
+        }
         val scanner = StreamingSensitiveScanner()
         scanner.feed(text)
-        return build("图片 OCR", text, scanner, "text")
+        return build("图片 OCR", text, scanner, "text").copy(
+            previewKind = "image",
+            imagePath = path.toAbsolutePath().toString(),
+        )
     }
 
     // ---------- 组装 ----------

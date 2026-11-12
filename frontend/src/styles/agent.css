@@ -439,3 +439,48 @@
   overflow: auto;
 }
 
+
+/* ---------- 大模型开关 ---------- */
+.ai-switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--acd-surface-2);
+}
+
+.ai-switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-switch-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--acd-text);
+}
+
+.ai-switch-sub {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--acd-text-2);
+}
+
+.ai-warning {
+  margin-top: 10px;
+}
+
+.report-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.report-notice :deep(.el-alert__title) {
+  font-size: 12px;
+  line-height: 1.6;
+}
+

@@ -67,7 +67,7 @@ check('table preview kind', tablePreview.kind === 'table', tablePreview.kind)
 check('table preview has rows', tablePreview.rows.length >= 3, tablePreview.rows?.length)
 check('table preview has header', tablePreview.header.length >= 3 && tablePreview.header.includes('日期'), tablePreview.header)
 
-const docItem = detail.parsedList.find((r) => r.fileName.endsWith('.docx') && r.judgeSource !== 'rule')
+const docItem = detail.parsedList.find((r) => r.fileName.endsWith('.docx'))
 const docPreview = (await call('GET', '/agent/results/' + docItem.id + '/preview', demoToken)).body.data
 check('docx preview kind text', docPreview.kind === 'text', docPreview.kind)
 check('docx preview has content', docPreview.text.length > 20, docPreview.text?.slice(0, 60))

@@ -22,18 +22,34 @@ const progressEvents = ref([])
 const showTimeline = ref(false)
 let pollTimer = null
 
+const aiEnabled = ref(false)
+const aiToggleTouched = ref(false)
 const previewVisible = ref(false)
 const previewLoading = ref(false)
 const previewData = ref(null)
 const previewImageUrl = ref('')
 
+const llmAvailable = computed(() => !!(llmStatus.value.llm && llmStatus.value.llm.available))
+
 const llmHint = computed(() => {
   const llm = llmStatus.value.llm || {}
   const ocr = llmStatus.value.ocr || {}
-  const llmText = llm.available ? '大模型判定已启用（' + (llm.model || 'deepseek-chat') + '）' : '未配置可用模型平台，使用本地规则判定'
-  const ocrText = ocr.available === false ? '；图片 OCR 不可用' : '；图片走本机 OCR'
-  return llmText + ocrText
+  const vision = llmStatus.value.vision || {}
+  const llmText = llm.available
+    ? '大模型可用（' + (llm.model || 'deepseek-chat') + '），需在上面手动打开才会参与判定'
+    : '未配置可用模型平台，只能使用本地规则判定'
+  const visionText = vision.available ? '；识图判定可用' : '；识图判定不可用'
+  const ocrText = ocr.available === false ? '；图片 OCR 不可用' : ''
+  return llmText + visionText + ocrText
 })
+
+/** 未开启大模型判定时的等级说明，用于列表标签 */
+function levelTag(item) {
+  if (item.matchLevel === 3) return { text: '高匹配', type: 'success' }
+  if (item.matchLevel === 2) return { text: item.levelCapped ? '可能高匹配' : '中匹配', type: item.levelCapped ? 'warning' : 'primary' }
+  if (item.matchLevel === 1) return { text: '低匹配', type: 'info' }
+  return { text: '不推荐', type: 'info' }
+}
 
 const treeData = computed(() => {
   const nodes = new Map()
@@ -120,7 +136,11 @@ async function startScan() {
   progressEvents.value = []
   showTimeline.value = false
   try {
-    const started = await api.agentScan({ bountyId: selectedBounty.value, scopeFileIds: checked })
+    const started = await api.agentScan({
+      bountyId: selectedBounty.value,
+      scopeFileIds: checked,
+      aiEnabled: aiEnabled.value && llmAvailable.value,
+    })
     progress.value = { taskId: started.taskId, taskStatus: 1, stage: '排队中', total: started.totalFileCount, processed: 0, percent: 0, events: [], done: false }
     poll(started.taskId)
   } catch (error) {
@@ -223,6 +243,25 @@ onBeforeUnmount(stopPolling)
         </el-tree>
         <p class="panel-note">未勾选的文件夹不会被访问；范围外的文件一律不评估。</p>
 
+        <el-divider />
+
+        <div class="panel-title">3. 大模型判定（可选）</div>
+        <div class="ai-switch-row">
+          <el-switch v-model="aiEnabled" :disabled="!llmAvailable || scanning" @change="aiToggleTouched = true" />
+          <div class="ai-switch-text">
+            <span class="ai-switch-title">{{ aiEnabled ? '已开启：允许大模型判定' : '未开启：只用本地规则' }}</span>
+            <span class="ai-switch-sub">{{ aiEnabled ? '会调用大模型做语义判定，并让视觉模型看图片画面' : '不开启时最高只能标为「可能高匹配」，且不做识图' }}</span>
+          </div>
+        </div>
+        <el-alert
+          v-if="!llmAvailable"
+          type="warning"
+          :closable="false"
+          show-icon
+          title="当前没有可用的大模型平台，开关不可用，结果一律按本地规则并降级为「可能高匹配」"
+          class="ai-warning"
+        />
+
         <el-button
           type="primary"
           :icon="VideoPlay"
@@ -300,8 +339,21 @@ onBeforeUnmount(stopPolling)
               </div>
             </el-collapse-transition>
 
+            <div class="report-notices">
+              <el-alert
+                v-for="(notice, index) in report.notices"
+                :key="index"
+                :type="report.aiEnabled ? 'info' : 'warning'"
+                :closable="false"
+                show-icon
+                :title="notice"
+                class="report-notice"
+              />
+            </div>
             <p class="llm-hint" style="margin-top: 8px">
-              {{ report.llmUsed ? ('本次 ' + report.llmJudgedCount + ' 个文件由大模型语义判定（' + (report.llmModel || 'deepseek-chat') + '）') : '本次使用本地规则判定' }}
+              {{ report.aiEnabled
+                ? ('本次已开启大模型判定：' + report.llmJudgedCount + ' 个文件语义判定，' + report.visionUsedCount + ' 张图片识图（' + (report.llmModel || 'deepseek-chat') + '）')
+                : '本次未开启大模型判定，仅本地规则，最高等级为「可能高匹配」' }}
             </p>
 
             <div class="stat-row">
@@ -309,6 +361,7 @@ onBeforeUnmount(stopPolling)
               <div class="stat-item"><span class="stat-num">{{ report.successParseCount }}</span><span>成功解析</span></div>
               <div class="stat-item"><span class="stat-num">{{ report.failParseCount }}</span><span>未能解析</span></div>
               <div class="stat-item"><span class="stat-num">{{ report.recommendations.length }}</span><span>进入推荐</span></div>
+              <div class="stat-item"><span class="stat-num">{{ report.possibleHighCount }}</span><span>其中可能高匹配</span></div>
             </div>
 
             <div class="report-section">
@@ -331,6 +384,11 @@ onBeforeUnmount(stopPolling)
               <el-table-column prop="fileName" label="文件" min-width="170" />
               <el-table-column prop="parseMethod" label="解析方式" width="150" />
               <el-table-column prop="parsedSummary" label="解析出的内容要点" min-width="240" show-overflow-tooltip />
+              <el-table-column label="等级" width="120">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="levelTag(row).type" effect="plain">{{ levelTag(row).text }}</el-tag>
+                </template>
+              </el-table-column>
               <el-table-column label="判定来源" width="100">
                 <template #default="{ row }">
                   <el-tag size="small" :type="row.judgeSource === 'llm' ? 'success' : 'info'" effect="plain">
@@ -351,7 +409,9 @@ onBeforeUnmount(stopPolling)
             <div v-if="!report.recommendations.length" class="panel-note">本次没有达到匹配门槛的文件。</div>
             <div v-for="item in report.recommendations" :key="item.id" class="rec-item">
               <div class="rec-head">
-                <el-tag size="small" :type="LEVEL_TYPE[item.matchLevel]" effect="dark">{{ item.matchLabel }}</el-tag>
+                <el-tag size="small" :type="levelTag(item).type" effect="dark">{{ levelTag(item).text }}</el-tag>
+                <el-tag v-if="item.visionOk === true" size="small" type="success" effect="plain">识图通过</el-tag>
+                <el-tag v-else-if="item.visionOk === false" size="small" type="danger" effect="plain">画面无关</el-tag>
                 <span class="rec-name">{{ item.fileName }}</span>
                 <span class="rec-size">{{ formatBytes(item.fileSize) }}</span>
                 <el-tag size="small" :type="item.judgeSource === 'llm' ? 'success' : 'info'" effect="plain">
@@ -366,6 +426,7 @@ onBeforeUnmount(stopPolling)
                 </div>
               </div>
               <p class="rec-evidence"><span class="label">证据：</span>{{ item.evidenceText || '（未命中关键词，仅供参考）' }}</p>
+              <p class="rec-evidence" v-if="item.visionScene"><span class="label">画面：</span>{{ item.visionScene }}</p>
               <p class="rec-risk" v-if="item.riskTag"><span class="label">风险：</span>{{ item.riskTag }} — {{ item.riskDesc }}</p>
             </div>
           </el-card>
@@ -377,6 +438,7 @@ onBeforeUnmount(stopPolling)
               <el-tag size="small" type="danger" effect="plain">{{ item.riskTag }}</el-tag>
               <span class="rec-name">{{ item.fileName }}</span>
               <span class="report-text">{{ item.riskDesc }}</span>
+              <span v-if="item.visionScene" class="report-text">（画面：{{ item.visionScene }}）</span>
               <el-button text size="small" @click="openPreview(item)">预览</el-button>
             </div>
             <div v-if="report.skipped.length" class="skipped-block">

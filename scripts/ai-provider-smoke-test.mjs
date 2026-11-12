@@ -119,7 +119,8 @@ try {
   const bounties = await call('GET', '/bounty', adminToken)
   const cooking = bounties.body.data.find((b) => b.title.includes('R-01')) || bounties.body.data[0]
   const before = (await call('GET', '/admin/ai-providers/status', adminToken)).body.data.failoverCount
-  const started = await call('POST', '/agent/scan', demoToken, { bountyId: cooking.id, scopeFileIds: [tidy] })
+  // 必须显式开启大模型判定，否则会按用户开关降级为本地规则（这是产品行为）
+  const started = await call('POST', '/agent/scan', demoToken, { bountyId: cooking.id, scopeFileIds: [tidy], aiEnabled: true })
   const scanTaskId = started.body?.data?.taskId
   let scanDetail = null
   const scanDeadline = Date.now() + 120000

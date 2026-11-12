@@ -19,7 +19,18 @@ data class BountyDto(
 
 data class BountyRequest(val title: String = "", val rawDesc: String = "")
 
-data class ScanRequest(val bountyId: Long = 0, val scopeFileIds: List<Long> = emptyList())
+/**
+ * @param aiEnabled 用户是否打开「允许大模型判定」。false 时只做本地规则，
+ *                  且任何结论都不得评为高匹配（最多"可能高匹配"）。
+ */
+data class ScanRequest(
+    val bountyId: Long = 0,
+    val scopeFileIds: List<Long> = emptyList(),
+    /** 缺省（null）按"未开启"处理，避免旧前端/脚本未传字段时反序列化失败 */
+    val aiEnabled: Boolean? = null,
+) {
+    val aiRequested: Boolean get() = aiEnabled == true
+}
 
 data class FolderNodeDto(val id: Long, val parentId: Long?, val name: String, val childCount: Long)
 
@@ -41,6 +52,11 @@ data class ScanResultDto(
     val judgeSource: String = "rule",
     val judgeReason: String? = null,
     val previewKind: String? = null,
+    /** 是否因为「未开启大模型判定」而被限制过等级 */
+    val levelCapped: Boolean = false,
+    /** 图片视觉模型对该图片画面的结论（仅图片类文件有值） */
+    val visionScene: String? = null,
+    val visionOk: Boolean? = null,
 )
 
 data class ScanTaskDetailDto(
@@ -66,6 +82,11 @@ data class ScanTaskDetailDto(
     val llmModel: String? = null,
     val llmUsed: Boolean = false,
     val llmJudgedCount: Int = 0,
+    val aiEnabled: Boolean = false,
+    val llmAvailable: Boolean = false,
+    val visionUsedCount: Int = 0,
+    val possibleHighCount: Int = 0,
+    val notices: List<String> = emptyList(),
 )
 
 data class ScanTaskRowDto(

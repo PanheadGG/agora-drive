@@ -149,6 +149,75 @@ class LlmClient(
         return null
     }
 
+    /**
+     * 多模态判定：把图片本体 + 已 OCR 出的文字一起交给视觉模型，
+     * 用来识破"OCR 出了文字、但画面其实无关"（如白底截图、表情包、空白模板）。
+     * 返回 null 表示没有可用平台或全部失败，调用方需降级。
+     */
+    fun chatVisionJson(
+        systemPrompt: String,
+        userPrompt: String,
+        imagePath: java.nio.file.Path,
+        temperature: Double = 0.1,
+    ): Map<String, Any?>? {
+        if (!enabled) return null
+        val dataUrl = caller.imageDataUrl(imagePath) ?: return null
+        val candidates = providerService.chain()
+        if (candidates.isEmpty()) return null
+
+        val healthy = candidates.filterNot { isCoolingDown(it.id) }
+        val cooling = candidates.filter { isCoolingDown(it.id) }
+        val ordered = if (healthy.isNotEmpty()) healthy + cooling else candidates
+
+        val userContent = listOf(
+            linkedMapOf("type" to "text", "text" to userPrompt),
+            linkedMapOf("type" to "image_url", "image_url" to linkedMapOf("url" to dataUrl)),
+        )
+
+        var attempted = 0
+        for (candidate in ordered) {
+            attempted++
+            val payload = Json.stringify(
+                linkedMapOf(
+                    "model" to candidate.model,
+                    "messages" to listOf(
+                        linkedMapOf("role" to "system", "content" to systemPrompt),
+                        linkedMapOf("role" to "user", "content" to userContent),
+                    ),
+                    "temperature" to temperature,
+                    "response_format" to linkedMapOf("type" to "json_object"),
+                    "stream" to false,
+                )
+            )
+            val result = caller.chatRaw(candidate.baseUrl, candidate.apiKey, payload, candidate.timeoutSeconds.toLong())
+            calls.incrementAndGet()
+            lastLatencyMs = result.latencyMs
+
+            if (result.ok) {
+                val parsed = caller.parseJsonContent(result.content ?: "")
+                if (parsed == null) {
+                    failures.incrementAndGet()
+                    providerService.recordFailure(candidate.id, result.latencyMs, "vision response is not JSON")
+                    markCooldown(candidate.id)
+                    continue
+                }
+                providerService.recordSuccess(candidate.id, result.latencyMs)
+                clearCooldown(candidate.id)
+                lastProviderName = candidate.name
+                activeProviderId = candidate.id
+                if (attempted > 1) failoverCount.incrementAndGet()
+                return parsed
+            }
+
+            failures.incrementAndGet()
+            lastError = candidate.name + "（识图）: " + (result.error ?: "调用失败")
+            providerService.recordFailure(candidate.id, result.latencyMs, result.error)
+            markCooldown(candidate.id)
+            log.warn("vision provider {} failed: {}", candidate.name, result.error)
+        }
+        return null
+    }
+
     private fun isCoolingDown(id: Long): Boolean {
         val until = cooldownUntil[id] ?: return false
         if (until <= System.currentTimeMillis()) {

@@ -101,7 +101,51 @@ $env:APP_MASTER_KEY = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Ra
 
 ![新增平台](screenshots/18-admin-ai-dialog.png)
 
-## 三、流式内容解析与敏感检测（本次优化）
+## 三、大模型判定开关（用户可控）+ 图片识图
+
+大模型是否参与判定**由用户自己决定**，默认关闭。
+
+| 开关状态 | 行为 | 结果等级 |
+| --- | --- | --- |
+| **关闭（默认）** | 只跑本地关键词规则，不发起任何模型请求，也不识图 | 最高只能标为 **「可能高匹配」**（2 级），并标注"因未开启大模型判定而被限制等级" |
+| **打开** | 文本走语义判定 + 图片走视觉判定 | 可以给出 **「高匹配」**（3 级） |
+
+- 前端在「3. 大模型判定（可选）」用一个开关控制，状态随请求传入 `aiEnabled`；
+- 没有可用模型平台时开关**置灰不可点**，并提示结果一律降级；
+- 任务记录 `ai_enabled`，报告顶部给出醒目说明（如「本次未开启大模型判定，仅本地规则，最高等级为「可能高匹配」」）；
+- 每条结果带 `level_capped` 标记，列表里能直接看到哪些被降级。
+
+### 为什么图片要单独做识图
+
+只用 OCR 会出错：**一张白底/渐变底的文字卡片，OCR 也能识别出"番茄炒蛋家常菜"**，按关键词就会误判为高匹配，但画面里根本没有真实菜品。
+
+因此图片类文件额外调用多模态模型看**画面本身**：
+
+1. 图片本体（data URL）+ OCR 文字一起交给视觉模型，要求它描述画面并判断相关性；
+2. 提示词明确要求：只有文字、画面是白板/模板/聊天截图/表情包的判为无关；
+3. 视觉判定「画面无关」的标记 `riskTag = 画面无关` 并附画面描述，**不进推荐列表**；
+4. 视觉模型不可用时，图片降级为「待视觉确认」，同样不给高匹配。
+
+实测（开启大模型后扫描「随手拍」）：
+
+```
+IMG_20250314.png     OCR：番茄炒蛋家常菜…   → 识图：橙色渐变背景文字卡片，无实物画面 → 不推荐
+微信图片_20250402.png  OCR：周末爬山岔路口…   → 识图：绿色背景模板图，仅有文字       → 不推荐
+```
+
+若只看 OCR 文字，这两张本会命中关键词；是识图把它们挡掉的。
+
+另外「网络搬运」规则提到最高优先级：本机解析出小红书/公众号/转载等痕迹的文件，无论模型或视觉怎么说都判不推荐。
+
+![大模型开关](screenshots/25-ai-toggle-on.png)
+
+| 关闭时降级为「可能高匹配」 | 开启后可给「高匹配」 |
+| --- | --- |
+| ![关闭](screenshots/22-ai-off-possible-high.png) | ![开启](screenshots/23-ai-on-high-match.png) |
+
+![识图过滤](screenshots/24-vision-filter.png)
+
+## 四、流式内容解析与敏感检测
 
 解析全程**边读边判**，不再整份文件读进内存；敏感信息在解析过程中实时命中，命中即判定为高风险、正文不外发。
 
@@ -142,7 +186,7 @@ $env:APP_MASTER_KEY = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Ra
 | --- | --- |
 | ![表格预览](screenshots/20-scan-preview-table.png) | ![文档预览](screenshots/21-scan-preview-text.png) |
 
-## 四、目录结构
+## 五、目录结构
 
 ```
 backend/
@@ -157,7 +201,7 @@ screenshots/                  README 截图
 docs/                         原始设计文档
 ```
 
-## 五、环境与启动
+## 六、环境与启动
 
 要求：JDK 17+、Node 20+ 与 pnpm、PostgreSQL 16+（本机 PG 18 验证）。
 
@@ -196,7 +240,7 @@ cd backend; .\kotlin.bat build
 - `demo` 的「随手拍」5 个真实文件：3 张可 OCR 的 PNG、1 个内含 2 张 PNG 的 ZIP、1 个带身份证与手机号的文本型 PDF
 - `enterprise` 的 5 条示例悬赏（配了 Key 时由 DeepSeek 解析成结构化需求）
 
-## 六、验证与测试
+## 七、验证与测试
 
 五套脚本，均已在本机实际跑通：
 
@@ -206,7 +250,8 @@ cd backend; .\kotlin.bat build
 | `scripts/agent-smoke-test.ps1` | Agent 链路：角色限制、企业发布、授权扫描、内容解析（OCR/PDF/ZIP）、证据、风险与搬运排除、复核、越权 403、后台审计 | **29/29 PASS** |
 | `scripts/llm-smoke-test.ps1` | LLM 链路：llm-status、悬赏由 LLM 结构化、调用计数、匹配判定走 LLM、证据接地、敏感文件仍走本地规则 | **10/10 PASS**（用可用平台验证） |
 | `scripts/ai-provider-smoke-test.mjs` | 模型管理：多平台增删改查、Key 加密与脱敏、连通性测试、不可达平台自动切换、冷却与健康记录、停用/排序、非管理员 403、参数校验 | **29/29 PASS** |
-| `scripts/scan-progress-test.mjs` | 扫描过程与预览：异步返回 taskId、轮询到 running 状态、实时事件流、表格/文档预览、流式敏感检测、越权预览 403 | **17/17 PASS** |
+| `scripts/scan-progress-test.mjs` | 扫描过程与预览：异步返回 taskId、轮询到 running 状态、实时事件流、表格/文档预览、流式敏感检测、越权预览 403 | **19/19 PASS** |
+| `scripts/vision-optin-test.mjs` | 大模型开关与识图：关闭时封顶「可能高匹配」、开启后可给高匹配、`aiEnabled` 缺省为关、图片识图排除画面无关文件、降级提示 | **19/19 PASS** |
 
 ```powershell
 powershell -File scripts/smoke-test.ps1
@@ -228,7 +273,7 @@ node scripts/scan-progress-test.mjs            # 异步扫描进度 + 结果预�
 [不推荐] 徒步手记.txt | 内容为徒步路线记录，与烹饪领域无关。
 ```
 
-## 七、接口一览
+## 八、接口一览
 
 网盘底座：
 
@@ -251,7 +296,7 @@ Agent 协同：
 | GET | `/api/bounty?status=`、POST `/api/bounty`、GET `/api/bounty/{id}`、PUT `/api/bounty/{id}/status` | 悬赏列表 / 发布（LLM 结构化）/ 详情 / 启停 |
 | GET | `/api/agent/folders` | 本人文件夹树（授权范围） |
 | GET | `/api/agent/llm-status` | DeepSeek / OCR 能力状态 |
-| POST | `/api/agent/scan` | `{bountyId, scopeFileIds}` 发起扫描，立即返回 `taskId`（异步执行） |
+| POST | `/api/agent/scan` | `{bountyId, scopeFileIds, aiEnabled}` 发起扫描，立即返回 `taskId`（异步执行）；`aiEnabled` 缺省为 `false` |
 | GET | `/api/agent/tasks`、GET `/api/agent/tasks/{id}` | 我的任务 / 六段式报告 |
 | GET | `/api/agent/tasks/{id}/progress` | 扫描实时进度：阶段、当前文件、已处理数、逐文件事件 |
 | GET | `/api/agent/results/{id}/preview` | 结果预览：表格行 / 文本正文 / 图片标记 |
@@ -264,7 +309,7 @@ Agent 协同：
 
 统一响应体：`{ "code": 0, "msg": "ok", "data": ... }`。
 
-## 八、界面
+## 九、界面
 
 | 网盘（宫格） | 网盘（列表） |
 | --- | --- |
@@ -294,7 +339,7 @@ Agent 协同：
 | --- | --- |
 | ![模型管理](screenshots/17-admin-ai-providers.png) | ![新增平台](screenshots/18-admin-ai-dialog.png) |
 
-## 九、已知限制
+## 十、已知限制
 
 - 图片 OCR 依赖 Windows 自带识别引擎（本机离线可用），只识别画面文字，不做图像语义理解；扫描件类 PDF 仍需先转图片再 OCR
 - PDF 没有实现逐字体的 ToUnicode 重映射：使用嵌入子集字体的 PDF（中文常见）只能抽到字形码，会被标记为"未解析"而不是输出乱码；要彻底解决需要接 Apache PDFBox 或按 `Tf` 跟踪字体资源
@@ -308,3 +353,5 @@ Agent 协同：
 - 多平台切换是「调用失败后切换」，不是主动健康巡检：失败平台进入冷却期（默认 60 秒）后才重新参与，冷却结束由下一次调用自然恢复
 - 主密钥更换后旧密文不可解密，需在「模型管理」里重新填写一次 Key；Demo 未做多主密钥版本化轮换
 - 模型管理只覆盖 OpenAI 兼容协议；若平台协议不同（如某些私有厂商签名鉴权），需要另加 adapter
+- 识图需要平台支持多模态（`image_url` 内容块）；不支持或调用失败时图片降级为"待视觉确认"，不会给高匹配，也不会假装看过
+- 单张图片上限 4MB；压缩包内的图片不做识图（只对授权范围内的图片文件本身识图）

@@ -2,6 +2,9 @@
 # 用法：后端已启动（配置了 DEEPSEEK_API_KEY，或指向 scripts/mock-deepseek.mjs）后执行
 #   powershell -File scripts/llm-smoke-test.ps1
 $ErrorActionPreference = "Stop"
+# PS 5.1 下 curl 输出按 OEM 代码页解码会导致中文 JSON 破坏，这里强制 UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $Base = "http://127.0.0.1:8080/api"
 $script:fail = 0
 

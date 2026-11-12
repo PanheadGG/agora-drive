@@ -37,6 +37,7 @@ class AgentScanService(
     private val scanResultMapper: ScanResultMapper,
     private val contentParser: FileContentParser,
     private val matchJudge: LlmMatchJudge,
+    private val visionJudge: LlmVisionJudge,
     private val llmClient: LlmClient,
     private val ocrService: OcrService,
     private val progressRegistry: ScanProgressRegistry,
@@ -55,7 +56,14 @@ class AgentScanService(
     fun llmStatus(): Map<String, Any?> = linkedMapOf(
         "llm" to llmClient.status(),
         "ocr" to ocrService.status(),
+        "vision" to linkedMapOf(
+            "available" to (aiJudge.available && visionJudge.available),
+            "note" to if (aiJudge.available) "识图判定可用" else "未配置可用模型平台，识图不可用",
+        ),
     )
+
+    /** 是否具备大模型判定能力（前端据此决定开关是否可点） */
+    private val aiJudge: LlmMatchJudge get() = matchJudge
 
     /** 只做校验与建任务，真正的扫描丢到线程池，接口立刻返回 */
     fun startScan(userId: Long, req: ScanRequest): ScanStartDto {
@@ -74,12 +82,13 @@ class AgentScanService(
         }
 
         val scopeJson = req.scopeFileIds.distinct().joinToString(",", "[", "]")
-        val taskId = scanTaskMapper.insert(req.bountyId, userId, scopeJson)
+        val aiEnabled = req.aiRequested && aiJudge.available
+        val taskId = scanTaskMapper.insert(req.bountyId, userId, scopeJson, if (aiEnabled) 1 else 0)
         val progress = progressRegistry.create(taskId, files.size)
         progress.stage = "排队中"
 
-        scanExecutor.submit { runScan(taskId, requirement, files.values.toList(), progress) }
-        log.info("scan task {} submitted, files={}", taskId, files.size)
+        scanExecutor.submit { runScan(taskId, requirement, files.values.toList(), progress, aiEnabled) }
+        log.info("scan task {} submitted, files={}, aiEnabled={} (requested={}, available={})", taskId, files.size, aiEnabled, req.aiRequested, aiJudge.available)
         return ScanStartDto(taskId, 1, "扫描中", files.size)
     }
 
@@ -88,6 +97,7 @@ class AgentScanService(
         requirement: BountyStructureParser.Requirement,
         files: List<FileRow>,
         progress: ScanProgressRegistry.Progress,
+        aiEnabled: Boolean,
     ) {
         try {
             progress.status = 1
@@ -122,7 +132,7 @@ class AgentScanService(
             }
 
             val candidates = pendings.filter { it.parsed.ok && it.parsed.risk == null && !it.parsed.copied }
-            val llmApplied = matchJudge.available && candidates.isNotEmpty()
+            val llmApplied = aiEnabled && candidates.isNotEmpty()
             if (llmApplied) {
                 progress.stage = "语义判定（" + candidates.size + " 个文件交给大模型）"
                 progress.currentFile = null
@@ -143,12 +153,37 @@ class AgentScanService(
                 emptyMap()
             }
 
+            // 图片：交给视觉模型看画面本身，避免"OCR 有字但画面是白板/截图"被误判为高匹配
+            val imagePendings = pendings.filter { it.parsed.imagePath != null && it.parsed.risk == null && !it.parsed.copied }
+            val visionVerdicts = LinkedHashMap<Long, LlmVisionJudge.VisionVerdict>()
+            if (aiEnabled && visionJudge.available && imagePendings.isNotEmpty()) {
+                var done = 0
+                for (pending in imagePendings) {
+                    done++
+                    progress.stage = "识图判定（" + done + "/" + imagePendings.size + "）"
+                    progress.currentFile = pending.row.fileName
+                    val verdict = visionJudge.judge(requirement, pending.row.fileName, pending.parsed.imagePath, pending.parsed.text)
+                    if (verdict != null) visionVerdicts[pending.row.id ?: 0] = verdict
+                    progress.addEvent(
+                        fileId = pending.row.id ?: 0,
+                        fileName = pending.row.fileName,
+                        stage = if (verdict == null) "识图不可用" else if (verdict.relevant) "识图：相关" else "识图：画面无关",
+                        parseMethod = "视觉模型",
+                        ok = verdict?.relevant ?: false,
+                        riskTag = if (verdict != null && !verdict.relevant) "画面无关" else null,
+                        detail = verdict?.sceneDescription ?: "视觉模型不可用，降级为待视觉确认",
+                    )
+                }
+                progress.currentFile = null
+            }
+
             progress.stage = "写入结果"
             var success = 0
             var fail = 0
             for (pending in pendings) {
                 val fileId = pending.row.id ?: 0
-                val verdict = resolveVerdict(pending.parsed, requirement, llmVerdicts[fileId])
+                val vision = visionVerdicts[fileId]
+                val verdict = resolveVerdict(pending.parsed, requirement, llmVerdicts[fileId], vision, aiEnabled)
                 scanResultMapper.insert(
                     taskId,
                     fileId,
@@ -163,6 +198,9 @@ class AgentScanService(
                     verdict.reason,
                     pending.parsed.previewText.ifEmpty { pending.parsed.note ?: "" },
                     pending.parsed.previewKind,
+                    vision?.sceneDescription,
+                    vision?.let { if (it.relevant) 1 else 0 },
+                    if (verdict.levelCapped) 1 else 0,
                 )
                 if (pending.parsed.ok) success++ else fail++
             }
@@ -187,13 +225,67 @@ class AgentScanService(
         val riskDesc: String?,
         val source: String,
         val reason: String?,
+        val levelCapped: Boolean = false,
     )
+
+    /** 未开启大模型判定时，最高只能给「可能高匹配」（2 级），不能直接给高匹配（3 级） */
+    private fun capLevel(level: Int, aiEnabled: Boolean): Pair<Int, Boolean> =
+        if (!aiEnabled && level > CAP_WITHOUT_AI) CAP_WITHOUT_AI to true else level to false
 
     private fun resolveVerdict(
         parsed: FileContentParser.ParsedFile,
         requirement: BountyStructureParser.Requirement,
         llmVerdict: LlmMatchJudge.Judgement?,
+        vision: LlmVisionJudge.VisionVerdict?,
+        aiEnabled: Boolean,
     ): Verdict {
+        // 本机已判定为网络搬运：不论模型/视觉怎么说，一律不推荐（搬运内容没有原创性）
+        if (parsed.copied) {
+            val hits = requirement.matchKeywords.filter { parsed.text.contains(it) }
+            return Verdict(
+                level = 0,
+                evidence = snippet(parsed.text, hits.firstOrNull()),
+                riskTag = "网络搬运",
+                riskDesc = "解析到搬运特征：" + parsed.copiedMarkers.joinToString("、") + "，按规则排除",
+                source = "rule",
+                reason = "本机搬运特征检测命中（优先于模型判定）",
+            )
+        }
+
+        // 图片：视觉模型明确判定画面无关 → 直接不推荐（哪怕 OCR 出了关键词）
+        if (vision != null && !vision.relevant) {
+            val hits = requirement.matchKeywords.filter { parsed.text.contains(it) }
+            return Verdict(
+                level = 0,
+                evidence = snippet(parsed.text, hits.firstOrNull()),
+                riskTag = "画面无关",
+                riskDesc = "OCR 有文字，但视觉模型判定画面内容与需求无关"
+                    + (vision.sceneDescription?.let { "：" + it } ?: ""),
+                source = "llm",
+                reason = vision.reason ?: "视觉模型判定画面无关，已排除",
+            )
+        }
+        if (parsed.imagePath != null && aiEnabled && vision == null && visionJudge.available) {
+            val hits = requirement.matchKeywords.filter { parsed.text.contains(it) }
+            val (level, capped) = capLevel(
+                if (hits.size >= 3) CAP_WITHOUT_AI else when {
+                    hits.size == 2 -> 2
+                    hits.size == 1 -> 1
+                    else -> 0
+                },
+                aiEnabled = false,
+            )
+            return Verdict(
+                level = level,
+                evidence = snippet(parsed.text, hits.firstOrNull()),
+                riskTag = null,
+                riskDesc = null,
+                source = "rule",
+                reason = "图片识图未完成，按 OCR 文字估算并限制为「待视觉确认」",
+                levelCapped = capped,
+            )
+        }
+
         if (!parsed.ok) return Verdict(0, null, null, null, "rule", parsed.note)
 
         val localHits = requirement.matchKeywords.filter { parsed.text.contains(it) }
@@ -221,29 +313,37 @@ class AgentScanService(
         }
         if (llmVerdict != null) {
             val evidence = llmVerdict.evidence?.takeIf { it.isNotBlank() && isGrounded(it, parsed.text) } ?: localEvidence
+            val (level, capped) = capLevel(llmVerdict.matchLevel, aiEnabled)
             return Verdict(
-                level = llmVerdict.matchLevel,
+                level = level,
                 evidence = evidence,
                 riskTag = llmVerdict.riskTag,
                 riskDesc = llmVerdict.riskDesc,
                 source = "llm",
-                reason = llmVerdict.reason,
+                reason = if (capped) "未开启大模型判定，等级上限为「可能高匹配」" else llmVerdict.reason,
+                levelCapped = capped,
             )
         }
 
-        val level = when {
+        val rawLevel = when {
             localHits.size >= 3 -> 3
             localHits.size == 2 -> 2
             localHits.size == 1 -> 1
             else -> 0
         }
+        val (level, capped) = capLevel(rawLevel, aiEnabled)
         return Verdict(
             level = level,
             evidence = localEvidence,
             riskTag = null,
             riskDesc = null,
             source = "rule",
-            reason = if (localHits.isEmpty()) "未命中需求关键词" else "命中关键词：" + localHits.joinToString("、"),
+            reason = when {
+                capped -> "命中了关键词，但未开启大模型判定，只能标为「可能高匹配」"
+                localHits.isEmpty() -> "未命中需求关键词"
+                else -> "命中关键词：" + localHits.joinToString("、")
+            },
+            levelCapped = capped,
         )
     }
 
@@ -364,6 +464,19 @@ class AgentScanService(
         val recommendations = parsedList.filter { it.matchLevel > 0 }.sortedByDescending { it.matchLevel }
         val highRisk = parsedList.filter { !it.riskTag.isNullOrBlank() }
         val llmJudged = results.count { it.judgeSource == "llm" }
+        val visionUsed = results.count { it.visionOk != null }
+        val cappedCount = results.count { it.levelCapped }
+        val possibleHigh = recommendations.count { it.matchLevel == CAP_WITHOUT_AI && it.levelCapped }
+        val notices = buildList {
+            if (task.aiEnabled == 0) {
+                add("本次未开启大模型判定：结论仅来自本地关键词规则，「高匹配」最多标为「可能高匹配」，识图判定未参与。")
+            }
+            if (task.aiEnabled == 1 && visionUsed > 0) add("本次有 " + visionUsed + " 张图片由视觉模型看过画面（不只依赖 OCR 文字）。")
+            if (task.aiEnabled == 1 && aiJudge.available == false) {
+                add("扫描时配置的大模型平台不可用，已自动降级为本地规则。")
+            }
+            if (cappedCount > 0) add("有 " + cappedCount + " 条结果因未开启大模型判定而被限制等级。")
+        }
 
         val tips = buildList {
             if (recommendations.any { it.matchLevel == 3 }) {
@@ -407,6 +520,11 @@ class AgentScanService(
             llmModel = llmClient.activeModel.takeIf { llmClient.available },
             llmUsed = llmJudged > 0,
             llmJudgedCount = llmJudged,
+            aiEnabled = task.aiEnabled == 1,
+            llmAvailable = aiJudge.available,
+            visionUsedCount = visionUsed,
+            possibleHighCount = possibleHigh,
+            notices = notices,
         )
     }
 
@@ -444,6 +562,9 @@ class AgentScanService(
         judgeSource = judgeSource,
         judgeReason = judgeReason,
         previewKind = previewKind,
+        levelCapped = levelCapped == 1,
+        visionScene = visionScene,
+        visionOk = visionOk?.let { it == 1 },
     )
 
     private fun com.pgigi.agentclouddisk.model.ScanTask.toRowDto() = ScanTaskRowDto(
@@ -463,9 +584,12 @@ class AgentScanService(
     companion object {
         private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
 
+        /** 未开启大模型判定时的等级上限：只到「可能高匹配」 */
+        const val CAP_WITHOUT_AI = 2
+
         fun matchLabel(level: Int): String = when (level) {
             3 -> "高匹配"
-            2 -> "中匹配"
+            2 -> "可能高匹配"
             1 -> "低匹配"
             else -> "不推荐"
         }

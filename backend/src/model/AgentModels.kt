@@ -26,6 +26,7 @@ data class ScanTask(
     var finishedAt: String? = null,
     var bountyTitle: String? = null,
     var userName: String? = null,
+    var aiEnabled: Int = 0,
 )
 
 data class ScanResult(
@@ -48,6 +49,9 @@ data class ScanResult(
     var judgeReason: String? = null,
     var previewText: String? = null,
     var previewKind: String? = null,
+    var visionScene: String? = null,
+    var visionOk: Int? = null,
+    var levelCapped: Int = 0,
 )
 
 data class FolderRow(

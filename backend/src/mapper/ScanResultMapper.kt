@@ -12,12 +12,14 @@ interface ScanResultMapper {
     @Select(
         """INSERT INTO agent_scan_result (scan_task_id, user_file_id, match_level, parse_status, parse_method,
                   parsed_summary, evidence_text, risk_tag, risk_desc, judge_source, judge_reason,
-                  preview_text, preview_kind)
+                  preview_text, preview_kind, vision_scene, vision_ok, level_capped)
            VALUES (#{scanTaskId}, #{userFileId}, #{matchLevel}, #{parseStatus}, #{parseMethod,jdbcType=VARCHAR},
                    #{parsedSummary,jdbcType=VARCHAR}, #{evidenceText,jdbcType=VARCHAR},
                    #{riskTag,jdbcType=VARCHAR}, #{riskDesc,jdbcType=VARCHAR},
                    #{judgeSource,jdbcType=VARCHAR}, #{judgeReason,jdbcType=VARCHAR},
-                   #{previewText,jdbcType=VARCHAR}, #{previewKind,jdbcType=VARCHAR})
+                   #{previewText,jdbcType=VARCHAR}, #{previewKind,jdbcType=VARCHAR},
+                   #{visionScene,jdbcType=VARCHAR}, #{visionOk,jdbcType=INTEGER},
+                   #{levelCapped,jdbcType=INTEGER})
            RETURNING id"""
     )
     fun insert(
@@ -34,12 +36,16 @@ interface ScanResultMapper {
         @Param("judgeReason") judgeReason: String? = null,
         @Param("previewText") previewText: String? = null,
         @Param("previewKind") previewKind: String? = null,
+        @Param("visionScene") visionScene: String? = null,
+        @Param("visionOk") visionOk: Int? = null,
+        @Param("levelCapped") levelCapped: Int = 0,
     ): Long
 
     @Select(
         """SELECT r.id, r.scan_task_id, r.user_file_id, r.match_level, r.parse_status, r.parse_method,
                   r.parsed_summary, r.evidence_text, r.risk_tag, r.risk_desc, r.user_review, r.review_note,
                   r.judge_source, r.judge_reason, r.preview_text, r.preview_kind,
+                  r.vision_scene, r.vision_ok, r.level_capped,
                   to_char(r.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   uf.file_name, COALESCE(m.total_size, 0) AS file_size
            FROM agent_scan_result r
@@ -54,6 +60,7 @@ interface ScanResultMapper {
         """SELECT r.id, r.scan_task_id, r.user_file_id, r.match_level, r.parse_status, r.parse_method,
                   r.parsed_summary, r.evidence_text, r.risk_tag, r.risk_desc, r.user_review, r.review_note,
                   r.judge_source, r.judge_reason, r.preview_text, r.preview_kind,
+                  r.vision_scene, r.vision_ok, r.level_capped,
                   to_char(r.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   uf.file_name, COALESCE(m.total_size, 0) AS file_size
            FROM agent_scan_result r

@@ -10,14 +10,15 @@ import org.apache.ibatis.annotations.Update
 interface ScanTaskMapper {
 
     @Select(
-        """INSERT INTO agent_scan_task (bounty_id, user_id, auth_scope_json, task_status)
-           VALUES (#{bountyId}, #{userId}, #{authScopeJson}::jsonb, 0)
+        """INSERT INTO agent_scan_task (bounty_id, user_id, auth_scope_json, task_status, ai_enabled)
+           VALUES (#{bountyId}, #{userId}, #{authScopeJson}::jsonb, 0, #{aiEnabled})
            RETURNING id"""
     )
     fun insert(
         @Param("bountyId") bountyId: Long,
         @Param("userId") userId: Long,
         @Param("authScopeJson") authScopeJson: String,
+        @Param("aiEnabled") aiEnabled: Int = 0,
     ): Long
 
     @Update(
@@ -37,7 +38,7 @@ interface ScanTaskMapper {
 
     @Select(
         """SELECT t.id, t.bounty_id, t.user_id, t.auth_scope_json::text AS auth_scope_json, t.task_status,
-                  t.total_file_count, t.success_parse_count, t.fail_parse_count,
+                  t.total_file_count, t.success_parse_count, t.fail_parse_count, t.ai_enabled,
                   to_char(t.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   to_char(t.finished_at, 'YYYY-MM-DD HH24:MI:SS') AS finished_at,
                   b.title AS bounty_title, u.username AS user_name
@@ -50,7 +51,7 @@ interface ScanTaskMapper {
 
     @Select(
         """SELECT t.id, t.bounty_id, t.user_id, t.auth_scope_json::text AS auth_scope_json, t.task_status,
-                  t.total_file_count, t.success_parse_count, t.fail_parse_count,
+                  t.total_file_count, t.success_parse_count, t.fail_parse_count, t.ai_enabled,
                   to_char(t.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   to_char(t.finished_at, 'YYYY-MM-DD HH24:MI:SS') AS finished_at,
                   b.title AS bounty_title, u.username AS user_name
@@ -64,7 +65,7 @@ interface ScanTaskMapper {
 
     @Select(
         """SELECT t.id, t.bounty_id, t.user_id, t.auth_scope_json::text AS auth_scope_json, t.task_status,
-                  t.total_file_count, t.success_parse_count, t.fail_parse_count,
+                  t.total_file_count, t.success_parse_count, t.fail_parse_count, t.ai_enabled,
                   to_char(t.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                   to_char(t.finished_at, 'YYYY-MM-DD HH24:MI:SS') AS finished_at,
                   b.title AS bounty_title, u.username AS user_name
