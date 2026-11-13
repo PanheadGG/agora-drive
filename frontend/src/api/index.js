@@ -51,6 +51,41 @@ export const api = {
   adminBountyStatus: (id, status) => http.put('/admin/bounties/' + id + '/status?status=' + status),
   adminScanTasks: (bountyId) => http.get('/admin/scan-tasks', { params: { bountyId } }),
 
+  // ---------- 卖方 Agent ----------
+  sellerTemplates: () => http.get('/seller/templates'),
+  sellerFolders: () => http.get('/seller/folders'),
+  sellerProducts: () => http.get('/seller/products'),
+  sellerProduct: (id) => http.get('/seller/products/' + id),
+  sellerCreate: (data) => http.post('/seller/products', data),
+  sellerPublish: (id, data) => http.post('/seller/products/' + id + '/publish', data),
+  sellerDelist: (id) => http.post('/seller/products/' + id + '/delist'),
+  sellerDelete: (id) => http.delete('/seller/products/' + id),
+  sellerBuildProgress: (taskId) => http.get('/seller/build/' + taskId + '/progress'),
+  sellerDeliveries: () => http.get('/seller/deliveries'),
+  sellerAcceptDelivery: (id) => http.post('/seller/deliveries/' + id + '/accept'),
+  sellerCompleteDelivery: (id) => http.post('/seller/deliveries/' + id + '/complete'),
+
+  // ---------- 数据市场（买方） ----------
+  marketListings: (params) => http.get('/market/listings', { params }),
+  marketListing: (id) => http.get('/market/listings/' + id),
+  marketDemands: () => http.get('/market/demands'),
+  marketCreateDemand: (data) => http.post('/market/demands', data),
+  marketMatch: (id) => http.post('/market/demands/' + id + '/match'),
+  marketPushes: () => http.get('/market/pushes'),
+  marketReadPush: (id) => http.post('/market/pushes/' + id + '/read'),
+  marketRequestDelivery: (id, note) => http.post('/market/pushes/' + id + '/delivery', null, { params: { note } }),
+  marketDeliveries: () => http.get('/market/deliveries'),
+  marketStats: () => http.get('/market/stats'),
+
+  // ---------- Agent 协同 ----------
+  collabList: () => http.get('/market/collab'),
+  collabDetail: (id) => http.get('/market/collab/' + id),
+  collabInvite: (data) => http.post('/market/collab/invitations', data),
+  collabAccept: (id) => http.post('/market/collab/' + id + '/accept'),
+  collabReject: (id) => http.post('/market/collab/' + id + '/reject'),
+  collabContribute: (id, data) => http.post('/market/collab/' + id + '/contribute', data),
+  collabMerge: (id) => http.post('/market/collab/' + id + '/merge'),
+
   aiProviders: () => http.get('/admin/ai-providers'),
   aiProviderStatus: () => http.get('/admin/ai-providers/status'),
   aiProviderCreate: (data) => http.post('/admin/ai-providers', data),

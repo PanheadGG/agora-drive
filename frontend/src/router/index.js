@@ -9,8 +9,9 @@ const routes = [
     children: [
       { path: '', name: 'drive', component: () => import('../views/DriveView.vue') },
       { path: 'recycle', name: 'recycle', component: () => import('../views/RecycleView.vue') },
-      { path: 'bounties', name: 'bounties', component: () => import('../views/BountiesView.vue') },
-      { path: 'agent', name: 'agent', component: () => import('../views/AgentView.vue') },
+      { path: 'seller', name: 'seller', component: () => import('../views/SellerStudioView.vue') },
+      { path: 'market', name: 'market', component: () => import('../views/MarketView.vue') },
+      { path: 'collab', name: 'collab', component: () => import('../views/CollabView.vue') },
     ],
   },
   {

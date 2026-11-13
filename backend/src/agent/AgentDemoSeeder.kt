@@ -39,11 +39,11 @@ class AgentDemoSeeder(
     private val log = LoggerFactory.getLogger(AgentDemoSeeder::class.java)
 
     override fun run(args: ApplicationArguments) {
-        val enterpriseId = seedEnterprise()
         seedPersonalFiles()
-        seedBounties(enterpriseId)
+        // 悬赏式演示数据已由 MarketDemoSeeder（卖方/买方模型）取代，不再播种
     }
 
+    @Suppress("unused")
     private fun seedEnterprise(): Long {
         val existing = userMapper.findByUsername("enterprise")
         if (existing != null) {
@@ -188,6 +188,7 @@ class AgentDemoSeeder(
         log.info("seeded demo personal sample files (real docx/xlsx/pdf/png/zip)")
     }
 
+    @Suppress("unused")
     private fun seedBounties(enterpriseId: Long) {
         if (bountyMapper.countAll() > 0) return
 

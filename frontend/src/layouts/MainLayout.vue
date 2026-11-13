@@ -36,8 +36,9 @@ function onUserCommand(command) {
 
       <nav class="topbar-nav">
         <a :class="['nav-link', { active: current === 'drive' || current === 'recycle' }]" @click="router.push('/')">我的文件</a>
-        <a :class="['nav-link', { active: current === 'bounties' }]" @click="router.push('/bounties')">悬赏广场</a>
-        <a :class="['nav-link', { active: current === 'agent' }]" @click="router.push('/agent')">智能匹配 Agent</a>
+        <a :class="['nav-link', { active: current === 'seller' }]" @click="router.push('/seller')">卖方工作台</a>
+        <a :class="['nav-link', { active: current === 'market' }]" @click="router.push('/market')">数据市场</a>
+        <a :class="['nav-link', { active: current === 'collab' }]" @click="router.push('/collab')">Agent 协同</a>
       </nav>
 
       <el-input v-model="disk.keyword" class="topbar-search" placeholder="搜索当前文件夹" clearable>
@@ -67,8 +68,8 @@ function onUserCommand(command) {
           <div class="user-chip">
             <span class="avatar">{{ initial }}</span>
             <span class="user-name">{{ auth.user?.username }}</span>
-            <el-tag size="small" effect="plain" :type="auth.isAdmin ? 'danger' : auth.isEnterprise ? 'warning' : 'info'">
-              {{ auth.roleLabel }}
+            <el-tag size="small" effect="plain" :type="auth.isAdmin ? 'danger' : 'info'">
+              {{ auth.isAdmin ? '管理员' : '买卖双向' }}
             </el-tag>
           </div>
           <template #dropdown>
