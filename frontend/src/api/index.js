@@ -56,6 +56,7 @@ export const api = {
   sellerFolders: () => http.get('/seller/folders'),
   sellerProducts: () => http.get('/seller/products'),
   sellerProduct: (id) => http.get('/seller/products/' + id),
+  sellerIntent: (data) => http.post('/seller/intent', data),
   sellerCreate: (data) => http.post('/seller/products', data),
   sellerPublish: (id, data) => http.post('/seller/products/' + id + '/publish', data),
   sellerDelist: (id) => http.post('/seller/products/' + id + '/delist'),

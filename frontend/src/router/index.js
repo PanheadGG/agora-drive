@@ -11,7 +11,7 @@ const routes = [
       { path: 'recycle', name: 'recycle', component: () => import('../views/RecycleView.vue') },
       { path: 'seller', name: 'seller', component: () => import('../views/SellerStudioView.vue') },
       { path: 'market', name: 'market', component: () => import('../views/MarketView.vue') },
-      { path: 'collab', name: 'collab', component: () => import('../views/CollabView.vue') },
+      // Agent 协同暂不对用户开放（保留后端能力，前端入口隐藏）
     ],
   },
   {

@@ -25,6 +25,7 @@ class SellerAgentService(
     private val contentParser: FileContentParser,
     private val builder: ProductBuilder,
     private val templates: ProductTemplateRegistry,
+    private val intentParser: ProductIntentParser,
     private val llmClient: LlmClient,
     private val progressRegistry: ScanProgressRegistry,
     private val scanExecutor: ExecutorService,
@@ -48,7 +49,14 @@ class SellerAgentService(
 
     /** 创建产品骨架并立即异步构建 */
     fun createAndBuild(userId: Long, req: CreateProductRequest): BuildHandle {
-        val template = templates.byKey(req.templateKey) ?: throw ApiException(400, "未知的产品模板：" + req.templateKey)
+        // 普通用户走「一句话描述 → Agent 选模板」；也允许直接指定模板
+        val description = req.description?.trim().orEmpty()
+        val resolvedKey = when {
+            !req.templateKey.isNullOrBlank() -> req.templateKey!!
+            description.isNotBlank() -> intentParser.parse(description, req.aiEnabled != false).templateKey
+            else -> templates.all().first().key
+        }
+        val template = templates.byKey(resolvedKey) ?: throw ApiException(400, "未知的产品模板：" + resolvedKey)
         if (req.scopeFileIds.isEmpty()) throw ApiException(400, "请先勾选要加工的文件夹或文件")
 
         val files = LinkedHashMap<Long, FileRow>()
@@ -59,7 +67,9 @@ class SellerAgentService(
         }
         if (files.isEmpty()) throw ApiException(400, "授权范围内没有可加工的文件")
 
-        val title = req.title.trim().ifEmpty { template.label + " · " + java.time.LocalDate.now() }
+        val title = req.title?.trim().orEmpty().ifEmpty {
+            description.take(20).ifEmpty { template.label + " · " + java.time.LocalDate.now() }
+        }
         val reportedAi = req.aiRequested && llmClient.available
         val productId = productMapper.insertShell(
             userId, title, template.key, template.label, "solo", if (reportedAi) 1 else 0,
@@ -115,6 +125,9 @@ class SellerAgentService(
             progress.stage = "按模板聚合（k-匿名 k=" + ProductBuilder.K_ANONYMITY + "）"
             progress.currentFile = null
             val extraction = builder.extract(template.key, parsed, aiEnabled)
+            if (extraction.usedFiles.isEmpty()) {
+                progress.message = "选中文件里没有与「" + template.label + "」匹配的内容"
+            }
 
             progress.stage = "生成产品描述"
             val tags = builder.describeTags(template, extraction.rows, aiEnabled)
@@ -222,13 +235,21 @@ class SellerAgentService(
         return productId
     }
 
+    /**
+     * 面向普通用户的建产品请求：
+     * - description：一句话说想做什么，Agent 自己选模板（推荐路径）
+     * - templateKey：高级用户可直接指定模板，二者给一个即可
+     * - aiEnabled：默认开启，前端不再暴露该开关
+     */
     data class CreateProductRequest(
-        val templateKey: String = "",
-        val title: String = "",
+        val description: String? = null,
+        val templateKey: String? = null,
+        val title: String? = null,
         val scopeFileIds: List<Long> = emptyList(),
         val aiEnabled: Boolean? = null,
     ) {
-        val aiRequested: Boolean get() = aiEnabled == true
+        /** 缺省视为开启：大模型参与是默认体验，不是需要用户理解的可选项 */
+        val aiRequested: Boolean get() = aiEnabled != false
     }
 
     companion object {

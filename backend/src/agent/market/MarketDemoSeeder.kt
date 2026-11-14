@@ -108,7 +108,10 @@ class MarketDemoSeeder(
         val scope = folders.mapNotNull { it.id }
         val handle = sellerAgent.createAndBuild(
             userId,
-            SellerAgentService.CreateProductRequest(templateKey, title, scope, true),
+            SellerAgentService.CreateProductRequest(
+                description = "", templateKey = templateKey, title = title,
+                scopeFileIds = scope, aiEnabled = true,
+            ),
         )
         // 同步等待构建完成（Seeder 里可以等，避免市场页面空着）
         val deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(60)

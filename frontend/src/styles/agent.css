@@ -667,3 +667,76 @@
   margin-bottom: 8px;
 }
 
+
+/* ---------- 一句话描述与理解结果 ---------- */
+.example-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -6px 0 14px;
+}
+
+.example-label {
+  font-size: 12px;
+  color: var(--acd-text-2);
+}
+
+.example-tag {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.example-tag:hover {
+  border-color: var(--acd-primary);
+  color: var(--acd-primary);
+}
+
+.intent-box {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(22, 119, 255, 0.25);
+  background: rgba(22, 119, 255, 0.05);
+}
+
+.intent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.intent-title {
+  font-size: 13px;
+  color: var(--acd-text);
+}
+
+.intent-reason {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--acd-text-2);
+}
+
+.intent-fields {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--acd-text-2);
+}
+
+.product-sample {
+  margin: 12px 0 10px;
+}
+
+.sample-title {
+  font-size: 12px;
+  color: var(--acd-text-2);
+  margin-bottom: 6px;
+}
+
+
+.product-empty-alert {
+  margin: 12px 0 10px;
+}
+

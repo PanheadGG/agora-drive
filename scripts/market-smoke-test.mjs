@@ -34,8 +34,10 @@ check('commute template present', !!commuteTpl, tpl.body.data.map((t) => t.key))
 // 2. 种子产品与上架
 const products = (await call('GET', '/seller/products', a.token)).body.data
 check('seller_a has seeded product', products.length >= 1, products.length)
-// 取单方产品（联合产品没有单方原料哈希，只有贡献者摘要，这是设计如此）
-const seeded = products.find((p) => p.sourceKind === 'solo') || products[0]
+// 取「已上架且有内容」的单方产品（联合产品没有单方原料哈希，空产品是描述与文件不匹配的正常结果）
+const seeded = products.find((p) => p.sourceKind === 'solo' && p.rowCount > 0 && p.status === 1)
+  || products.find((p) => p.rowCount > 0)
+  || products[0]
 check('product has groups', JSON.parse(seeded.qualityJson).groups > 0, seeded.qualityJson)
 const receipt = JSON.parse(seeded.buildReceipt)
 check('solo product has receipt digest', !!receipt.digest, seeded.buildReceipt?.slice(0, 120))

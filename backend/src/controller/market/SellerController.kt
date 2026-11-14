@@ -2,6 +2,7 @@ package com.pgigi.agentclouddisk.controller.market
 
 import com.pgigi.agentclouddisk.agent.ScanProgressRegistry
 import com.pgigi.agentclouddisk.agent.market.MarketService
+import com.pgigi.agentclouddisk.agent.market.ProductIntentParser
 import com.pgigi.agentclouddisk.agent.market.ProductTemplateRegistry
 import com.pgigi.agentclouddisk.agent.market.SellerAgentService
 import com.pgigi.agentclouddisk.auth.CurrentUser
@@ -28,6 +29,7 @@ class SellerController(
     private val userFileMapper: UserFileMapper,
     private val progressRegistry: ScanProgressRegistry,
     private val templates: ProductTemplateRegistry,
+    private val intentParser: ProductIntentParser,
 ) {
 
     @GetMapping("/templates")
@@ -44,6 +46,16 @@ class SellerController(
             "aggregateLabel" to it.aggregateLabel,
         )
     })
+
+    /**
+     * 普通用户用一句话描述想要的产品，Agent 替他选模板。
+     * 不需要用户懂"模板/字段/聚合维度"。
+     */
+    @PostMapping("/intent")
+    fun intent(@RequestBody body: IntentRequest): ApiResult<ProductIntentParser.Intent> =
+        ApiResult.ok(intentParser.parse(body.description ?: "", body.aiEnabled != false))
+
+    data class IntentRequest(val description: String? = null, val aiEnabled: Boolean? = null)
 
     /** 可授权的文件夹树（沿用网盘目录） */
     @GetMapping("/folders")
