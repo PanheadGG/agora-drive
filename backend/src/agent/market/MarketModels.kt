@@ -104,22 +104,7 @@ data class MarketMatch(
     var demandTitle: String? = null,
 )
 
-data class CollabSession(
-    var id: Long? = null,
-    var templateKey: String = "",
-    var templateLabel: String = "",
-    var title: String = "",
-    var initiatorId: Long = 0,
-    var partnerId: Long = 0,
-    var state: Int = 0,
-    var kThreshold: Int = 5,
-    var productId: Long? = null,
-    var message: String? = null,
-    var createdAt: String? = null,
-    var updatedAt: String? = null,
-    var initiatorName: String? = null,
-    var partnerName: String? = null,
-)
+// CollabSession 已迁移到 CollabModels.kt（增加协同号/密码/多成员字段）
 
 data class CollabContribution(
     var id: Long? = null,

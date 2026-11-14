@@ -110,39 +110,38 @@ check('delist product', delist.status === 200, delist.body)
 const listingsAfter = (await call('GET', '/market/listings', buyer.token)).body.data
 check('delisted listing hidden', !listingsAfter.some((l) => l.id === listingId), listingsAfter.map((l) => l.id))
 
-// 8. Agent 协同联合产品
-const invite = await call('POST', '/market/collab/invitations', a.token, {
-  partnerId: b.user.id, templateKey: 'commute_stats', title: '联合通勤统计', message: '一起做个覆盖两城的通勤产品', kThreshold: 3,
-})
-check('invite created', invite.status === 200 && invite.body.data.id > 0, invite.body)
-const sessionId = invite.body.data.id
-const accepted2 = await call('POST', '/market/collab/' + sessionId + '/accept', b.token)
-check('partner accepts', accepted2.body.data.state === 1, accepted2.body)
-
+// 8. 多 Agent 协同（协同号 + 密码 → 加入 → 发起人上架）
 const foldersA = (await call('GET', '/seller/folders', a.token)).body.data
 const foldersB = (await call('GET', '/seller/folders', b.token)).body.data
-const contribA = await call('POST', '/market/collab/' + sessionId + '/contribute', a.token, {
-  scopeFileIds: foldersA.map((f) => f.id), aiEnabled: false, approve: true,
+const createdCollab = await call('POST', '/market/collab/create', a.token, {
+  description: '联合两城通勤记录', title: '联合通勤统计', scopeFileIds: foldersA.map((f) => f.id),
 })
-check('A contributes', contribA.status === 200, contribA.body?.msg)
-const contribB = await call('POST', '/market/collab/' + sessionId + '/contribute', b.token, {
-  scopeFileIds: foldersB.map((f) => f.id), aiEnabled: false, approve: true,
-})
-check('B contributes', contribB.status === 200, contribB.body?.msg)
-check('contributions stored', contribB.body.data.contributions.length === 2, contribB.body.data.contributions?.length)
-check('merged preview has common groups', contribB.body.data.mergedPreview.length >= 1, contribB.body.data.mergedPreview)
+check('collab created with code', createdCollab.status === 200 && !!createdCollab.body.data.collabCode, createdCollab.body)
+const sessionId = createdCollab.body.data.sessionId
+const collabCode = createdCollab.body.data.collabCode
+const collabPassword = createdCollab.body.data.collabPassword
+const groupsBefore = createdCollab.body.data.detail.totalGroups
 
-const merged = await call('POST', '/market/collab/' + sessionId + '/merge', a.token)
-check('merge joint product', merged.status === 200 && merged.body.data.session.state === 3, merged.body)
-const jointProductId = merged.body.data.session.productId
-check('joint product bound', jointProductId > 0, jointProductId)
+const joined = await call('POST', '/market/collab/join', b.token, {
+  collabCode, collabPassword, scopeFileIds: foldersB.map((f) => f.id),
+})
+check('partner joins by code', joined.status === 200 && joined.body.data.members.length === 2, joined.body?.msg)
+check('product grows after join', joined.body.data.totalGroups > groupsBefore, {
+  before: groupsBefore, after: joined.body.data.totalGroups,
+})
+
+const published = await call('POST', '/market/collab/' + sessionId + '/publish', a.token, {
+  title: '联合通勤统计', summary: '两位成员协同生成', priceCents: 2000,
+})
+check('owner publishes joint product', published.status === 200 && published.body.data.productId > 0, published.body)
+const jointProductId = published.body.data.productId
 const jointDetail = (await call('GET', '/seller/products/' + jointProductId, a.token)).body.data
 check('joint product marked', jointDetail.product.sourceKind === 'joint', jointDetail.product.sourceKind)
 check('joint product has receipt contributors', (JSON.parse(jointDetail.product.buildReceipt).contributors || []).length === 2, jointDetail.product.buildReceipt?.slice(0, 200))
 
-// 9. 权限
+// 9. 权限：协同成员也不是产品所有者
 const forbidden = await call('GET', '/seller/products/' + jointProductId, b.token)
-check('non-owner blocked from product', forbidden.status === 403, forbidden.status)
+check('member is not product owner', forbidden.status === 403, forbidden.status)
 const noAuth = await call('GET', '/market/listings', null)
 check('market requires auth', noAuth.status === 401, noAuth.status)
 

@@ -38,6 +38,7 @@ function onUserCommand(command) {
         <a :class="['nav-link', { active: current === 'drive' || current === 'recycle' }]" @click="router.push('/')">我的文件</a>
         <a :class="['nav-link', { active: current === 'seller' }]" @click="router.push('/seller')">卖方工作台</a>
         <a :class="['nav-link', { active: current === 'market' }]" @click="router.push('/market')">数据市场</a>
+        <a :class="['nav-link', { active: current === 'collab' }]" @click="router.push('/collab')">协同</a>
       </nav>
 
       <el-input v-model="disk.keyword" class="topbar-search" placeholder="搜索当前文件夹" clearable>

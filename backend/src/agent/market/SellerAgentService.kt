@@ -182,7 +182,7 @@ class SellerAgentService(
         }
     }
 
-    /** 联合产品：由两个 Agent 的聚合贡献合并而成 */
+    /** 联合产品：由多个 Agent 的聚合贡献合并而成 */
     fun createJointProduct(
         ownerId: Long,
         template: ProductTemplateRegistry.Template,

@@ -35,6 +35,8 @@ class MarketDemoSeeder(
     private val encoder: org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder,
     private val marketService: com.pgigi.agentclouddisk.agent.market.MarketService,
     private val sellerAgent: SellerAgentService,
+    private val collab: CollabCoordinator,
+    private val collabMapper: com.pgigi.agentclouddisk.mapper.market.CollabMapper,
 ) : ApplicationRunner {
 
     private val log = LoggerFactory.getLogger(MarketDemoSeeder::class.java)
@@ -65,6 +67,9 @@ class MarketDemoSeeder(
         buildIfEmpty(a.first, "通勤时效统计", "commute_stats", a.second)
         buildIfEmpty(b.first, "通勤时效统计", "commute_stats", b.second)
 
+        // 预置一个已建立的协同（A 发起 + B 已加入），方便现场直接展示"产品动态增大"
+        seedCollab(a.first, b.first)
+
         // 买方需求（发布时会自动匹配推送）
         if (marketMapper.listDemandsByBuyer(buyer.first).isEmpty()) {
             marketService.createDemand(
@@ -77,6 +82,35 @@ class MarketDemoSeeder(
             )
             log.info("seeded buyer demand for user {}", buyer.first)
         }
+    }
+
+    /** 演示用协同：seller_a 发起，seller_b 已用协同号加入，联合产品已成形 */
+    private fun seedCollab(ownerId: Long, partnerId: Long) {
+        if (collabMapper.listForUser(ownerId).isNotEmpty()) return
+        val ownerFolders = userFileMapper.listFolders(ownerId).mapNotNull { it.id }
+        val partnerFolders = userFileMapper.listFolders(partnerId).mapNotNull { it.id }
+        if (ownerFolders.isEmpty() || partnerFolders.isEmpty()) return
+
+        val created = collab.create(
+            ownerId,
+            CollabCoordinator.CreateRequest(
+                description = "把两边的通勤记录联合起来，看不同线路的平均耗时",
+                title = "双城通勤联合产品",
+                scopeFileIds = ownerFolders,
+            ),
+        )
+        val detail = collab.join(
+            partnerId,
+            CollabCoordinator.JoinRequest(
+                collabCode = created.collabCode,
+                collabPassword = created.collabPassword,
+                scopeFileIds = partnerFolders,
+            ),
+        )
+        log.info(
+            "seeded collab {} code={} members={} groups={}",
+            created.sessionId, created.collabCode, detail.members.size, detail.totalGroups,
+        )
     }
 
     private fun seedUser(username: String, password: String): Pair<Long, String> {

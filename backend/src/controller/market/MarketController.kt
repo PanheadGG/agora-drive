@@ -63,11 +63,22 @@ class MarketController(
     @GetMapping("/deliveries")
     fun deliveries(): ApiResult<Any> = ApiResult.ok(marketService.listDeliveries(CurrentUser.id(), asSeller = false))
 
-    // ---------- Agent 协同 ----------
+    // ---------- 多 Agent 协同（协同号 + 协同密码） ----------
 
-    @PostMapping("/collab/invitations")
-    fun invite(@RequestBody body: CollabCoordinator.InviteRequest): ApiResult<Any> =
-        ApiResult.ok(collab.invite(CurrentUser.id(), body))
+    /** A 发起协同：返回协同号与协同密码（密码仅此一次可见） */
+    @PostMapping("/collab/create")
+    fun createCollab(@RequestBody body: CollabCoordinator.CreateRequest): ApiResult<Any> =
+        ApiResult.ok(collab.create(CurrentUser.id(), body))
+
+    /** B 凭协同号 + 密码查看邀请（不加入也能看） */
+    @PostMapping("/collab/peek")
+    fun peekCollab(@RequestBody body: CollabCoordinator.PeekRequest): ApiResult<Any> =
+        ApiResult.ok(collab.peek(CurrentUser.id(), body))
+
+    /** B 凭协同号 + 密码加入，并提交自己的文件夹 */
+    @PostMapping("/collab/join")
+    fun joinCollab(@RequestBody body: CollabCoordinator.JoinRequest): ApiResult<Any> =
+        ApiResult.ok(collab.join(CurrentUser.id(), body))
 
     @GetMapping("/collab")
     fun collabs(): ApiResult<Any> = ApiResult.ok(collab.list(CurrentUser.id(), CurrentUser.role() == Roles.ADMIN))
@@ -76,18 +87,19 @@ class MarketController(
     fun collabDetail(@PathVariable id: Long): ApiResult<Any> =
         ApiResult.ok(collab.detail(CurrentUser.id(), id, CurrentUser.role() == Roles.ADMIN))
 
-    @PostMapping("/collab/{id}/accept")
-    fun accept(@PathVariable id: Long): ApiResult<Any> = ApiResult.ok(collab.accept(CurrentUser.id(), id))
+    /** 成员追加文件夹，产品随之增大 */
+    @PostMapping("/collab/{id}/files")
+    fun addFiles(@PathVariable id: Long, @RequestBody body: CollabCoordinator.AddFilesRequest): ApiResult<Any> =
+        ApiResult.ok(collab.addFiles(CurrentUser.id(), id, body))
 
-    @PostMapping("/collab/{id}/reject")
-    fun reject(@PathVariable id: Long): ApiResult<Any> = ApiResult.ok(collab.reject(CurrentUser.id(), id))
+    /** 只有发起人可以上架 */
+    @PostMapping("/collab/{id}/publish")
+    fun publishCollab(@PathVariable id: Long, @RequestBody body: CollabCoordinator.PublishRequest): ApiResult<Any> =
+        ApiResult.ok(mapOf("productId" to collab.publish(CurrentUser.id(), id, body)))
 
-    @PostMapping("/collab/{id}/contribute")
-    fun contribute(@PathVariable id: Long, @RequestBody body: CollabCoordinator.ContributeRequest): ApiResult<Any> =
-        ApiResult.ok(collab.contribute(CurrentUser.id(), id, body))
-
-    @PostMapping("/collab/{id}/merge")
-    fun merge(@PathVariable id: Long): ApiResult<Any> = ApiResult.ok(collab.merge(CurrentUser.id(), id))
+    @PostMapping("/collab/{id}/close")
+    fun closeCollab(@PathVariable id: Long): ApiResult<Any> =
+        ApiResult.ok(collab.close(CurrentUser.id(), id))
 
     // ---------- 统计 ----------
 

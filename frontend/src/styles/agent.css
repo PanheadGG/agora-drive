@@ -740,3 +740,44 @@
   margin: 12px 0 10px;
 }
 
+
+/* ---------- 协同号凭据 ---------- */
+.collab-credential {
+  padding: 4px 0;
+}
+
+.credential-hint {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--acd-text-2);
+}
+
+.credential-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--acd-surface-2);
+  margin-bottom: 10px;
+}
+
+.credential-label {
+  width: 76px;
+  font-size: 13px;
+  color: var(--acd-text-2);
+}
+
+.credential-value {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--acd-text);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+

@@ -20,6 +20,7 @@ class MarketService(
     private val productMapper: DataProductMapper,
     private val sellerAgent: SellerAgentService,
     private val matchJudge: LlmMatchJudge,
+    private val collabMapper: com.pgigi.agentclouddisk.mapper.market.CollabMapper,
     private val templates: ProductTemplateRegistry,
 ) {
 
@@ -30,9 +31,9 @@ class MarketService(
     fun browse(req: ListRequest): List<ProductListing> {
         val all = marketMapper.listActiveListings()
         return all.filter { listing ->
-            (req.domain.isBlank() || listing.domain == req.domain) &&
-                (req.keyword.isBlank() || matchText(listing).contains(req.keyword)) &&
-                (req.maxPriceCents <= 0 || listing.priceCents <= req.maxPriceCents)
+            (req.domainFilter.isEmpty() || listing.domain == req.domainFilter) &&
+                (req.query.isEmpty() || matchText(listing).contains(req.query)) &&
+                (req.maxPrice <= 0 || listing.priceCents <= req.maxPrice)
         }
     }
 
@@ -60,11 +61,11 @@ class MarketService(
 
         val listingId = marketMapper.insertListing(
             productId, userId,
-            req.title.trim().ifEmpty { product.title },
-            req.summary.trim().ifEmpty { template.description },
+            req.cleanTitle.ifEmpty { product.title },
+            req.cleanSummary.ifEmpty { template.description },
             Json.stringify(fields), Json.stringify(tags), template.domain,
             product.coverageStart, product.coverageEnd, product.rowCount, qualityScore,
-            req.priceCents.coerceAtLeast(0), req.licenseType.ifBlank { "internal" },
+            req.price.coerceAtLeast(0), req.license,
         )
         productMapper.updateStatus(productId, SellerAgentService.STATUS_LISTED)
         log.info("product {} listed as {} (price={})", productId, listingId, req.priceCents)
@@ -84,11 +85,11 @@ class MarketService(
     // ---------- 买方：需求 / 匹配 / 推送 ----------
 
     fun createDemand(userId: Long, req: DemandRequest): MarketDemand {
-        if (req.title.isBlank()) throw ApiException(400, "需求标题不能为空")
-        if (req.rawDesc.trim().length < 10) throw ApiException(400, "需求描述太短，至少 10 个字")
-        val requirement = BountyStructureParser.parse(req.title + " " + req.rawDesc)
+        if (req.cleanTitle.isBlank()) throw ApiException(400, "需求标题不能为空")
+        if (req.cleanDesc.length < 10) throw ApiException(400, "需求描述太短，至少 10 个字")
+        val requirement = BountyStructureParser.parse(req.cleanTitle + " " + req.cleanDesc)
         val id = marketMapper.insertDemand(
-            userId, req.title.trim(), req.rawDesc.trim(), requirement.toJson(), req.budgetCents.coerceAtLeast(0),
+            userId, req.cleanTitle, req.cleanDesc, requirement.toJson(), req.budget.coerceAtLeast(0),
         )
         val demand = marketMapper.findDemand(id) ?: throw ApiException(500, "需求创建失败")
         // 发布后立即匹配一次，体现"主动推送"
@@ -217,31 +218,42 @@ class MarketService(
         "unreadPushes" to marketMapper.countAllUnread(),
         "pendingDeliveries" to marketMapper.countPendingDeliveries(),
         "products" to productMapper.countAll(),
-        "collabs" to marketMapper.countCollabs(),
+        "collabs" to collabMapper.countAll(),
     )
 
     private data class Scored(val score: Int, val reasons: List<String>)
 
     data class ListRequest(
-        val keyword: String = "",
-        val domain: String = "",
-        val maxPriceCents: Long = 0,
-    )
+        val keyword: String? = null,
+        val domain: String? = null,
+        val maxPriceCents: Long? = null,
+    ) {
+        val query: String get() = keyword?.trim().orEmpty()
+        val domainFilter: String get() = domain?.trim().orEmpty()
+        val maxPrice: Long get() = maxPriceCents ?: 0
+    }
 
     data class PublishRequest(
-        val title: String = "",
-        val summary: String = "",
-        val priceCents: Long = 0,
-        val licenseType: String = "internal",
+        val title: String? = null,
+        val summary: String? = null,
+        val priceCents: Long? = null,
+        val licenseType: String? = null,
     ) {
-        val price: Long get() = priceCents
+        val cleanTitle: String get() = title?.trim().orEmpty()
+        val cleanSummary: String get() = summary?.trim().orEmpty()
+        val price: Long get() = priceCents ?: 0
+        val license: String get() = licenseType?.ifBlank { "internal" } ?: "internal"
     }
 
     data class DemandRequest(
-        val title: String = "",
-        val rawDesc: String = "",
-        val budgetCents: Long = 0,
-    )
+        val title: String? = null,
+        val rawDesc: String? = null,
+        val budgetCents: Long? = null,
+    ) {
+        val cleanTitle: String get() = title?.trim().orEmpty()
+        val cleanDesc: String get() = rawDesc?.trim().orEmpty()
+        val budget: Long get() = budgetCents ?: 0
+    }
 
     data class ListingDetail(
         val listing: ProductListing,

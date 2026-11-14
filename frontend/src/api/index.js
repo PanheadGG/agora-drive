@@ -78,14 +78,15 @@ export const api = {
   marketDeliveries: () => http.get('/market/deliveries'),
   marketStats: () => http.get('/market/stats'),
 
-  // ---------- Agent 协同 ----------
+  // ---------- 多 Agent 协同（协同号 + 协同密码） ----------
   collabList: () => http.get('/market/collab'),
   collabDetail: (id) => http.get('/market/collab/' + id),
-  collabInvite: (data) => http.post('/market/collab/invitations', data),
-  collabAccept: (id) => http.post('/market/collab/' + id + '/accept'),
-  collabReject: (id) => http.post('/market/collab/' + id + '/reject'),
-  collabContribute: (id, data) => http.post('/market/collab/' + id + '/contribute', data),
-  collabMerge: (id) => http.post('/market/collab/' + id + '/merge'),
+  collabCreate: (data) => http.post('/market/collab/create', data),
+  collabPeek: (data) => http.post('/market/collab/peek', data),
+  collabJoin: (data) => http.post('/market/collab/join', data),
+  collabAddFiles: (id, data) => http.post('/market/collab/' + id + '/files', data),
+  collabPublish: (id, data) => http.post('/market/collab/' + id + '/publish', data),
+  collabClose: (id) => http.post('/market/collab/' + id + '/close'),
 
   aiProviders: () => http.get('/admin/ai-providers'),
   aiProviderStatus: () => http.get('/admin/ai-providers/status'),

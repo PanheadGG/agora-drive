@@ -66,7 +66,42 @@ flowchart TD
 
 ![空结果提示](screenshots/29-seller-plain-language.png)
 
-## 四、市场匹配与推送
+## 四、多 Agent 协同（协同号 + 协同密码）
+
+用一组临时凭据把多个人网盘里的数据联合起来，产品随成员加入而动态增大，**原始文件始终不出各自网盘**。
+
+```mermaid
+sequenceDiagram
+    participant A as Agent A（发起人）
+    participant M as 协同中心
+    participant B as Agent B（成员）
+    A->>M: 一句话描述 + 勾选文件夹 → 创建协同
+    M-->>A: 协同号（8 位）+ 协同密码（6 位）
+    A->>B: 线下把协同号与密码发给对方
+    B->>M: 凭协同号 + 密码查看邀请
+    M-->>B: 协同标题、发起人、已有成员、会整理出什么
+    B->>M: 勾选自己的文件夹 → 加入
+    Note over M: 两边的分组统计各自本地生成<br/>只汇总统计，不传原始行
+    M-->>A: 产品规模增大（组数 / 贡献方数）
+    A->>M: 发起人上架 → 数据市场
+```
+
+| 环节 | 说明 |
+| --- | --- |
+| 发起 | A 用一句话描述（与单 Agent 一致的交互）+ 勾选文件夹 → 返回 **协同号 + 协同密码** |
+| 凭据 | 协同号 8 位、协同密码 6 位，均去除易混淆字符（无 0/O/1/I）；密码只显示一次，BCrypt 存储 |
+| 加入 | B 输入协同号 + 密码 → **先看到邀请详情**（标题、发起人、成员、会整理出什么）→ 勾选文件夹加入 |
+| 动态增大 | 每加入一个成员，其分组统计立即合并进产品；成员可随时「增加我的文件夹」 |
+| 上架 | **只有发起人**可以上架；成员只能看和追加自己的文件 |
+| 结束 | 发起人可结束协同；已上架的产品不受影响 |
+
+防泄露：交换的只有分组聚合（每组成员数、平均/分位值），从不传原始行；联合结果里 `贡献方数` 字段标明每个分组由几方共同贡献。
+
+![协同列表](screenshots/32-collab-list.png)
+
+![发起人视角](screenshots/31-collab-owner.png)
+
+## 五、市场匹配与推送
 
 ```mermaid
 flowchart LR
@@ -80,11 +115,11 @@ flowchart LR
 
 卖方的原始数据和 Agent **不参与匹配**，只在市场侧比对描述。需求发布后立即匹配（主动推送），卖方下架时相关推送自动失效。
 
-## 五、交付（最小化）
+## 六、交付（最小化）
 
 只做状态流转：买方「申请交付」→ 卖方「受理」→ 卖方「标记已交付」。不做真实数据传输。
 
-## 六、页面
+## 七、页面
 
 | 页面 | 作用 |
 | --- | --- |
@@ -99,7 +134,7 @@ flowchart LR
 
 ![数据市场](screenshots/27-market-catalog.png)
 
-## 七、演示账号与动线（约 3 分钟）
+## 八、演示账号与动线（约 3 分钟）
 
 | 账号 | 密码 | 说明 |
 | --- | --- | --- |
@@ -111,7 +146,7 @@ flowchart LR
 
 **动线**：seller_a →「我的数据产品」→ 新建 → 输入一句话看 Agent 理解 → 勾文件夹 → 看实时整理 → 卡片看整理结果预览 → 上架 → 切 buyer →「数据市场」看货源（注意看不到原始文件名）→ 我的推送看命中理由 → 申请交付 → 切回 seller_a 受理并标记已交付。
 
-## 八、接口
+## 九、接口
 
 **卖方（Agent）**
 
@@ -136,37 +171,52 @@ flowchart LR
 | GET | `/api/market/deliveries` | 买方交付申请 |
 | GET | `/api/market/stats` | 市场统计 |
 
-（协同接口 `/api/market/collab*` 保留但前端不再暴露。）
+**多 Agent 协同**
 
-## 九、数据模型（V8 新增 10 张表）
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/market/collab/create` | 发起协同（描述 + 文件夹）→ 返回**协同号 + 协同密码** |
+| POST | `/api/market/collab/peek` | 凭协同号 + 密码查看邀请（加入前可预览） |
+| POST | `/api/market/collab/join` | 凭协同号 + 密码加入并提交文件夹 |
+| GET | `/api/market/collab`、`/{id}` | 我的协同 / 详情（成员、联合结果、可否上架） |
+| POST | `/api/market/collab/{id}/files` | 成员追加文件夹，产品随之增大 |
+| POST | `/api/market/collab/{id}/publish` | **仅发起人**上架为数据产品 |
+| POST | `/api/market/collab/{id}/close` | 发起人结束协同 |
 
-`agent_peer` · `data_product` · `product_build_task` · `product_build_item` · `product_listing` · `market_demand` · `market_match` · `collab_session` · `collab_contribution` · `delivery_request`
+## 十、数据模型（V8 新增 10 张表 + V9 协同号）
+
+`agent_peer` · `data_product` · `product_build_task` · `product_build_item` · `product_listing` · `market_demand` · `market_match` · `collab_session` · `collab_member` · `collab_contribution` · `delivery_request`
+
+V9 为 `collab_session` 增加 `collab_code`（唯一）、`collab_password_hash`、`description`、`owner_id`，并新增 `collab_member`（成员、授权范围、贡献量）。
 
 原有 `user` / `file_meta` / `user_file` / `upload_task` / `ai_provider` 不动；角色收敛为「用户 / 管理员」。
 
-## 十、测试
+## 十一、测试
 
 | 套件 | 覆盖 | 结果 |
 | --- | --- | --- |
 | `scripts/seller-intent-test.mjs` | **一句话描述 → 模板识别**（4 类场景）、模糊描述兜底、用描述直接建产品、`aiEnabled` 缺省开启 | **10/10 PASS** |
 | `scripts/market-smoke-test.mjs` | 产品加工、构建凭证与原料 sha256、上架/下架与推送失效、需求匹配与命中理由、交付三段流转、权限隔离 | **45/45 PASS** |
+| `scripts/collab-code-test.mjs` | **多 Agent 协同**：协同号/密码生成与格式、凭号查看邀请、错误密码/未知协同号拒绝、加入后产品增大、重复加入不重复计数、追加文件夹、非发起人禁止上架、发起人上架、上架后禁止加入、非成员 403 | **29/29 PASS** |
 | `scripts/smoke-test.ps1` | 网盘底座：鉴权、分片上传、秒传、容量、回收站、后台 | 27/27 PASS |
 | `scripts/scan-progress-test.mjs` | 异步任务与进度、解析不崩溃、预览权限 | 19/19 PASS |
 | `scripts/vision-optin-test.mjs` | 大模型开关与图片识图降级 | 19/19 PASS |
 | `scripts/ai-provider-smoke-test.mjs` | 多平台模型管理与故障切换 | 29/29 PASS |
 
-## 十一、运行
+## 十二、运行
 
 ```powershell
 cd backend
 .\kotlin.bat run          # http://127.0.0.1:8080
 ```
 
-数据库 `agent_cloud_disk`，首次启动自动执行 V1–V8 迁移并播种演示数据（3 个市场账号 + 13 个混合格式文件 + 2 个已上架产品 + 1 条买方需求与其推送）。
+数据库 `agent_cloud_disk`，首次启动自动执行 V1–V9 迁移并播种演示数据（3 个市场账号 + 13 个混合格式文件 + 2 个已上架产品 + 1 条买方需求与其推送 + 1 个双人协同）。
 
-## 十二、已知限制
+## 十三、已知限制
 
-- Agent 协同（联合产品）前端已隐藏，后端能力保留；
+- 协同采用**并集**合并：某分组只要有一方出现就保留（因此产品随成员加入而增大），不做交集过滤；`贡献方数` 字段可让买方判断该分组的数据支撑强度；
+- 协同密码只能由发起人转告（系统不做站内消息）；密码泄露后目前没有"重置密码"入口，只能新开协同；
+- 协同成员上限未设硬限制，但所有成员共享同一产品模板，暂不支持成员各自使用不同模板；
 - 交付只做状态流转，不做真实数据传输与密钥协商；
 - 产品模板固定 4 个：用户可以用自然语言描述，但最终落到这 4 个模板之一，不支持自定义字段映射；
 - 意图识别在置信度低于 55% 时仍会选一个模板并标注"需确认"，不会阻断流程；
