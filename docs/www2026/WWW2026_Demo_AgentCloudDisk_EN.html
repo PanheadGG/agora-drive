@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>AgentCloudDisk: A Multi-Agent Cloud-Drive System for Turning Personal Data into Tradeable Data Products</title><style>
+@page { size: A4; margin: 14mm 13mm 15mm 13mm; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0; font-family: 'Linux Libertine','Times New Roman',Times,serif; font-size: 8.5pt; line-height: 1.42;
+  color: #111; text-align: justify; hyphens: auto; word-break: break-word;
+}
+.titleblock {
+  text-align: center; margin: 0 0 9pt; padding-bottom: 7pt;
+  border-bottom: 0.6pt solid #999;
+}
+.titleblock h1 { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-size: 16.5pt; line-height: 1.2; margin: 0 0 7pt; font-weight: 700; }
+.titleblock .meta { font-size: 8.4pt; line-height: 1.55; color: #333; }
+.titleblock .meta p { margin: 0 0 2pt; text-align: center; }
+/* 摘要标题若被顶栏吸收，这里保证不误用居中 */
+.titleblock .meta .caption { text-align: center; }
+.titleblock .venue { font-size: 8.2pt; color: #444; margin: 0 0 5pt; font-weight: 600; letter-spacing: 0.3px; }
+
+.body { column-count: 2; column-gap: 7mm; column-fill: auto; }
+
+h2 { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-size: 9.8pt; font-weight: 700; margin: 9pt 0 3.5pt; break-after: avoid; }
+h3 { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-size: 8.8pt; font-weight: 700; margin: 7pt 0 2.5pt; break-after: avoid; }
+h4 { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-size: 8.4pt; font-weight: 700; margin: 6pt 0 2pt; break-after: avoid; }
+p { margin: 0 0 3.8pt; orphans: 2; widows: 2; }
+ul, ol { margin: 0 0 4pt; padding-left: 11pt; }
+li { margin: 0 0 2pt; }
+strong { font-weight: 700; }
+a { color: #0b4fa8; text-decoration: none; }
+hr { display: none; }
+
+blockquote {
+  margin: 0 0 4pt; padding: 2.5pt 5pt; border-left: 2pt solid #c8d4e4;
+  background: #f6f8fb; font-size: 8pt; color: #333;
+}
+blockquote p { margin: 0 0 1.5pt; }
+
+code { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 7.5pt; background: #f2f4f7; padding: 0 1.5pt; border-radius: 2px; }
+pre {
+  background: #f7f8fa; border: 0.4pt solid #e3e6ea; border-radius: 3px;
+  padding: 4pt 5pt; overflow: hidden; break-inside: avoid;
+  font-size: 7.2pt; line-height: 1.32; margin: 0 0 4.5pt;
+}
+pre code { background: none; padding: 0; font-size: 7.2pt; }
+
+table { width: 100%; border-collapse: collapse; font-size: 7.4pt; margin: 0 0 5pt; break-inside: avoid; table-layout: fixed; }
+th, td {
+  border: 0.4pt solid #d7dbe0; padding: 2pt 3pt; text-align: left; vertical-align: top;
+  word-break: normal; overflow-wrap: break-word; hyphens: none;
+}
+th { background: #eef2f7; font-weight: 700; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-size: 7.2pt; }
+
+/* 图：限制高度，避免截图撑爆版面 */
+.figure { break-inside: avoid; page-break-inside: avoid; margin: 5pt 0 2pt; text-align: center; }
+/* 截图默认按栏宽显示，但限制高度，避免一张图占掉半页 */
+.figure img {
+  display: block; margin: 0 auto;
+  max-width: 100%; max-height: 46mm; width: auto; height: auto;
+  border: 0.4pt solid #dcdfe4; border-radius: 2px;
+}
+.mermaid-box { min-height: 20pt; }
+/* 流程图尽量撑满栏宽 */
+.mermaid-box svg {
+  display: block; margin: 0 auto;
+  width: 100% !important; max-width: 100% !important;
+  height: auto !important; max-height: 76mm;
+}
+
+/* 图注：只对「整段就是一个 em」的段落生效（参考文献里的 em 在句中，不受影响） */
+p.caption { font-size: 7.4pt; line-height: 1.35; text-align: center; color: #333; margin: 0 0 6pt; }
+
+/* 表格单元格内的截图：强制限高，避免撑爆版面 */
+td img, th img {
+  display: block; margin: 0 auto;
+  max-width: 100% !important; max-height: 40mm !important;
+  width: auto !important; height: auto !important;
+}
+</style></head>
+<body>
+<script id="mermaid-src" type="application/json">["flowchart LR\n    subgraph Sellers[\"Data sellers — one Agent per owner\"]\n        U1[\"Owner drive raw files\"] --> A1[\"Agent parse · aggregate · de-identify\"]\n        U2[\"Owner drive raw files\"] --> A2[\"Agent\"]\n        A1 <-->|\"session code + password, group stats only\"| A2\n        A1 --> P1[\"Data product\"]\n        A1 & A2 --> P3[\"Joint product grows per member\"]\n    end\n    P1 & P3 -->|\"owner publishes\"| M[\"Data market\"]\n    B[\"Buyer (same user)\"] -->|\"post demand\"| M\n    M -->|\"matched listings pushed\"| B","flowchart TB\n    subgraph FE[\"Browser — Vue 3 + Element Plus\"]\n        V1[\"Drive and preview\"]\n        V2[\"My data products (seller studio)\"]\n        V3[\"Data market (buyer view)\"]\n        V4[\"Collaboration (code + password)\"]\n        V5[\"Admin console\"]\n    end\n\n    subgraph BE[\"Single Spring Boot 4.1.1 / Kotlin process :8080\"]\n        C[\"76 REST endpoints\"]\n        AUTH[\"JWT + BCrypt role guard\"]\n        AGENT[\"Seller agent: template, build, progress\"]\n        PARSE[\"Streaming parsers: EasyExcel, StAX, PDF, OCR, ZIP\"]\n        PII[\"Boundary-safe PII scanner (32-char overlap)\"]\n        COLLAB[\"Collaboration coordinator: code, join, merge\"]\n        MARKET[\"Market engine: filter, score, push\"]\n        LLM[\"Provider router: priority + failover\"]\n        CRYPT[\"AES-256-GCM key vault\"]\n    end\n\n    subgraph DATA[\"Persistence\"]\n        PG[(\"PostgreSQL 18 — 19 tables, Flyway V1-V9\")]\n        FS[(\"Content-addressed store\")]\n    end\n\n    subgraph EXT[\"Optional external\"]\n        DS[\"DeepSeek / OpenAI-compatible\"]\n        MOCK[\"Local mock provider\"]\n    end\n\n    V1 --> C\n    V2 --> C\n    V3 --> C\n    V4 --> C\n    V5 --> C\n    C --> AUTH\n    C --> AGENT\n    AGENT --> PARSE\n    PARSE --> PII\n    C --> COLLAB\n    COLLAB --> PARSE\n    C --> MARKET\n    AGENT --> LLM\n    COLLAB --> LLM\n    LLM --> CRYPT\n    LLM -->|\"de-identified text / images\"| DS\n    LLM --> MOCK\n    C --> PG\n    PARSE --> FS","erDiagram\n    user ||--o{ user_file : owns\n    file_meta ||--o{ user_file : backs\n    user ||--o{ data_product : produces\n    data_product ||--o{ product_build_task : \"built by\"\n    product_build_task ||--o{ product_build_item : consumes\n    data_product ||--o{ product_listing : \"listed as\"\n    user ||--o{ market_demand : posts\n    product_listing ||--o{ market_match : \"matched to\"\n    market_demand ||--o{ market_match : \"matched by\"\n    market_match ||--o{ delivery_request : converts\n    collab_session ||--o{ collab_member : has\n    collab_session ||--o{ collab_contribution : collects","sequenceDiagram\n    participant A as Agent A (initiator)\n    participant H as Collaboration hub\n    participant B as Agent B (member)\n    A->>H: one-sentence request + folder scope\n    H-->>A: session code + password (shown once)\n    A->>B: share code and password out of band\n    B->>H: redeem code + password\n    H-->>B: invite preview (title, initiator, members, fields)\n    B->>H: tick own folder, join\n    Note over H: each side aggregates locally,<br/>only group statistics are exchanged\n    H-->>A: joint product grows (groups, contributing sources)\n    A->>H: publish (initiator only)","flowchart TD\n    D[\"One-sentence request\"] --> I[\"Agent selects template + confidence + reasoning\"]\n    I --> F[\"Owner's ticked folders only\"]\n    F --> P[\"Streaming parse: xlsx, docx, pdf, OCR, zip\"]\n    P --> G{\"Pre-flight checks\"}\n    G -->|\"ID / phone / bank card\"| X[\"exclude, recorded in receipt\"]\n    G -->|\"repost markers\"| X\n    G -->|\"unparsed\"| X\n    G -->|\"clean\"| T[\"Extract rows by template\"]\n    T --> A[\"Aggregate by dimension, k-anonymity drops small groups\"]\n    A --> R[\"Build receipt: source sha256 + params + model\"]\n    R --> PR[\"Product draft, then list or join\"]","flowchart LR\n    C[\"create: code + password\"] --> J[\"join by code, password verified with BCrypt\"]\n    J --> AGG[\"member aggregates locally\"]\n    AGG --> MERGE[\"union of group statistics, no raw rows\"]\n    MERGE --> GROW[\"product grows: groups up, sources up\"]\n    GROW --> PUB[\"initiator publishes\"]\n    GROW -.->|\"member adds folders\"| AGG","flowchart LR\n    L1[\"Laptop A: demo server, JDK 17+, 8 GB\"] -->|\"localhost:8080\"| S[\"Spring Boot + static SPA\"]\n    S --> PG[(\"PostgreSQL 18 on localhost:5432\")]\n    L2[\"Laptop B: audience screen\"] -->|\"same Wi-Fi, http://a.b.c.d:8080\"| S\n    S -.->|\"optional\"| NET[\"Internet: DeepSeek API\"]\n    S -.->|\"offline mode\"| MOCK[\"local mock provider :9099\"]"]</script>
+<div class="titleblock">
+  <h1>AgentCloudDisk: A Multi-Agent Cloud-Drive System for Turning Personal Data into Tradeable Data Products</h1>
+  <div class="venue">Demo Paper — WWW &#39;26 Companion (Demo Track)</div>
+  <div class="meta">
+
+<blockquote>
+<p>Authors and affiliations omitted for double-blind review.
+Contact: <em><a href="mailto:demo@example.org">demo@example.org</a></em> · Artifact: runnable system + seeded demo data (released upon acceptance)</p>
+</blockquote>
+</div>
+</div>
+<div class="body">
+
+<h2>Abstract</h2>
+<p>Valuable data sits dormant inside personal and enterprise cloud drives — commute logs, recipe notes, feeding tables, reading records — yet conventional drives offer only metadata search, so owners cannot turn this material into anything sellable. We present <strong>AgentCloudDisk</strong>, a runnable cloud-drive system in which an LLM Agent acts on behalf of each owner: given a one-sentence product request it selects an aggregation template, parses the owner&#39;s <em>authorized</em> files with streaming readers (row-streaming spreadsheets, StAX-based Word, a hand-written non-recursive PDF parser, on-device OCR, controlled archive unpacking), aggregates into a k-anonymous product, and publishes it to a data market where buyers post demands and receive matched listings. Two mechanisms carry the demo: <strong>multi-agent collaboration</strong>, where owners join a joint product with a short session code and password and the product grows monotonically as members contribute; and <strong>host-confined privacy</strong>, where sensitive files are filtered before any model call, model-produced evidence is verified against parsed text, and only aggregate statistics ever leave a member&#39;s drive. A visitor can describe a product from their own folder and watch a joint product grow by redeeming a code, on one laptop.</p>
+<p><strong>Keywords:</strong> data elements; cloud drive; LLM agent; multi-agent collaboration; privacy-preserving data publishing; data marketplaces</p>
+<hr>
+<h2>1. Introduction</h2>
+<p>Data elements have become a production factor, and marketplaces increasingly let demanders post <em>demands</em> while suppliers list <em>products</em>. In practice the suppliers are not curated warehouses: the raw material lies in ordinary <strong>cloud drives</strong> as heterogeneous files — commute spreadsheets, hand-written recipe photos, feeding logs, PDF reports.</p>
+<p>Three gaps motivate this demo:</p>
+<ol>
+<li><strong>Drives stop at metadata.</strong> A request such as &quot;aggregate my commute time by line&quot; cannot be answered by a filename search, and a drive offers no way to become a <em>product</em>.</li>
+<li><strong>Turning files into a product requires understanding content, but not uploading it.</strong> Content-based aggregation implies reading files; shipping raw documents to a third party is unacceptable for personal data.</li>
+<li><strong>Individual drives are too small to be valuable, yet naive collaboration leaks.</strong> One person&#39;s commute log is thin; combining several owners&#39; logs gives a statistically meaningful product, but naive combination exchanges raw records and enables cross-referencing attacks.</li>
+</ol>
+<p>Our demo answers these with a <strong>working system</strong>, not a mock-up. Contributions:</p>
+<ul>
+<li><strong>C1 — Agents that produce products, not search results.</strong> Each owner&#39;s Agent converts authorized raw files into an aggregated <em>data product</em> with schema, coverage, quality score, masked samples and a reproducible build receipt.</li>
+<li><strong>C2 — Natural-language product authoring.</strong> Users describe what they want in one sentence; the Agent selects a template, states its confidence and reasoning, and shows the fields it will produce — no template vocabulary required.</li>
+<li><strong>C3 — Code-based multi-agent collaboration.</strong> An initiator creates a joint project and receives a short <strong>session code</strong> plus <strong>password</strong>; other owners redeem them to join, contributing only group-level statistics, and the joint product grows with each member.</li>
+<li><strong>C4 — Host-confined, verifiable privacy.</strong> Sensitive content is filtered on the host before any network call; the market exposes only aggregate descriptions; a per-product receipt binds the product to its source file hashes.</li>
+</ul>
+<p><strong>On-site goal:</strong> a visitor should be able to describe one product in plain language, watch the Agent parse and aggregate, then join a joint project with a code and see the product grow — in under three minutes.</p>
+<hr>
+<h2>2. System Overview and Architecture</h2>
+<h3>2.1 Roles and loop</h3>
+<p>Every account is bidirectionally capable (buyer and seller); an administrator handles models, users and audits.</p>
+
+<div class="figure mermaid-box" data-idx="0"></div>
+
+<p class="caption"><em>Figure 1. Seller-side agents produce products; the market only ever sees descriptions.</em></p>
+<h3>2.2 Architecture</h3>
+
+<div class="figure mermaid-box" data-idx="1"></div>
+
+<p class="caption"><em>Figure 2. Component view. Everything except the optional model call runs inside one JVM.</em></p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Technology</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Backend</td>
+<td>Spring Boot 4.1.1, Kotlin, Amper/Kotlin Toolchain</td>
+<td>one process, port 8080</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>PostgreSQL 18, MyBatis 4.1, Flyway 13.12</td>
+<td>9 versioned migrations, 19 tables</td>
+</tr>
+<tr>
+<td>Files</td>
+<td>content-addressed local store, SHA-256 dedup</td>
+<td>5 MB resumable chunks</td>
+</tr>
+<tr>
+<td>Parsing</td>
+<td>EasyExcel 4.0.3, StAX, custom PDF reader, Windows.Media.Ocr, java.util.zip</td>
+<td>all streaming</td>
+</tr>
+<tr>
+<td>LLM</td>
+<td>DeepSeek / any OpenAI-compatible endpoint, JSON mode</td>
+<td>pluggable, with failover</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>BCrypt, HS256 JWT, AES-256-GCM (12-byte IV, 128-bit tag)</td>
+<td>keys never stored in plaintext</td>
+</tr>
+<tr>
+<td>Frontend</td>
+<td>Vue 3.5, Vite 6, Element Plus 2.9</td>
+<td>light/dark, 1440x900</td>
+</tr>
+</tbody></table>
+<h3>2.3 Data model</h3>
+
+<div class="figure mermaid-box" data-idx="2"></div>
+
+<p class="caption"><em>Figure 3. Nineteen tables; file_meta deduplicates content across owners, collab_member tracks per-member scope and contribution.</em></p>
+<hr>
+<h2>3. Demo Scenarios and Features</h2>
+<p>The booth tour runs in three minutes across three pages using two accounts.</p>
+<h3>S1 — Describe a product in one sentence (30 s)</h3>
+<p>The owner types <em>&quot;turn my commute records into average duration per line&quot;</em>. Debounced 500 ms later the Agent answers inline: <strong>template = Commute Timeliness, confidence 98%</strong>, one sentence of reasoning, and the exact fields it will produce (route, departure, arrival, duration, transfers). A rule-based fallback guarantees an answer even with no model configured.</p>
+<p><em>Input:</em> free text up to 200 chars. <em>Output:</em> template + confidence + reasoning + field list.</p>
+<div class="figure"><img src="file:///E:/Code/AgentCloudDisk/screenshots/30-agent-understands.png" alt="Agent understands the request"></div>
+<p><em>Figure 4. Natural-language authoring with an explicit, inspectable interpretation.</em></p>
+<h3>S2 — Watch the Agent parse and aggregate (30 s)</h3>
+<p>The owner ticks folders; only those subtrees are read. The build dialog streams per-file events (&quot;parsed&quot;, &quot;streamed Excel&quot;, &quot;skipped&quot;) and ends with a product card showing <em>N groups · M files · quality score</em>, plus a <strong>4-row preview table</strong> of the aggregated result. Files containing ID numbers or phone numbers are excluded before any model call, and the card states the privacy rule in plain language.</p>
+<div class="figure"><img src="file:///E:/Code/AgentCloudDisk/screenshots/29-seller-plain-language.png" alt="Plain-language product card"></div>
+<p class="caption"><em>Figure 5. Product card written for non-technical owners; the warning appears only when the description and the chosen files disagree.</em></p>
+<h3>S3 — Join a joint product with a code (45 s)</h3>
+<p>Owner A creates a joint project; a dialog returns an 8-character <strong>session code</strong> (e.g. <code>XPRZ98NB</code>) and a 6-character <strong>password</strong>, shown once with copy buttons. Owner B enters both, sees an invite card (title, initiator, current members, fields produced) <em>before</em> committing, ticks their own folder and joins. The joint product&#39;s group count increases immediately; members may later add folders to grow it further.</p>
+
+<div class="figure mermaid-box" data-idx="3"></div>
+
+<p class="caption"><em>Figure 6. Code-based collaboration. Only the initiator may publish; members can view and extend their own scope.</em></p>
+<table>
+<thead>
+<tr>
+<th>Joint-product list</th>
+<th>Owner view</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><img src="file:///E:/Code/AgentCloudDisk/screenshots/32-collab-list.png" alt="Collaboration list"></td>
+<td><img src="file:///E:/Code/AgentCloudDisk/screenshots/31-collab-owner.png" alt="Owner view"></td>
+</tr>
+</tbody></table>
+<p class="caption"><em>Figure 7. Session list with codes (left) and the owner view with the publish button (right); members instead see &quot;only the initiator can publish&quot;.</em></p>
+<h3>S4 — Market matching and push (30 s)</h3>
+<p>A buyer posts a demand in natural language. The market parses it into a structured requirement, hard-filters listings by keyword and domain, scores the survivors (keyword overlap, temporal coverage, quality, price), and pushes the top matches with <strong>human-readable reasons</strong> (&quot;matched keywords: commute, duration; coverage until 2026-03&quot;). Listings expose fields, coverage, quality, masked samples and the build receipt — never a raw filename.</p>
+<div class="figure"><img src="file:///E:/Code/AgentCloudDisk/screenshots/27-market-catalog.png" alt="Data market"></div>
+<p class="caption"><em>Figure 8. Market catalogue. Summaries and tags are visible; original files are not.</em></p>
+<h3>S5 — Minimal delivery handshake (15 s)</h3>
+<p>Buyer requests delivery, seller accepts, seller marks delivered. Three states, no payload transfer, matching the demo&#39;s scope.</p>
+<h3>What the audience can touch</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Audience action</th>
+<th>Visible result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>S1</td>
+<td>type their own one-liner</td>
+<td>interpretation appears in under 1 s</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>tick folders, start build</td>
+<td>per-file events; about 4.5 s for a 5-row sheet</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>redeem a code the presenter hands out</td>
+<td>joint product grows live</td>
+</tr>
+<tr>
+<td>S4</td>
+<td>post a demand</td>
+<td>ranked pushes with reasons</td>
+</tr>
+<tr>
+<td>S5</td>
+<td>request delivery</td>
+<td>three-state handshake</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Implementation and Deployment</h2>
+<h3>4.1 Processing pipeline</h3>
+
+<div class="figure mermaid-box" data-idx="4"></div>
+
+<p class="caption"><em>Figure 9. Seller-side pipeline. Products contain only aggregates, so listing cannot leak individual records.</em></p>
+<p>Four built-in templates (commute timeliness, home-recipe library, pet-feeding records, reading notes) are fixed so that products stay comparable and verifiable; the natural-language layer only maps requests onto them.</p>
+<h3>4.2 Collaboration protocol</h3>
+
+<div class="figure mermaid-box" data-idx="5"></div>
+
+<p class="caption"><em>Figure 10. Collaboration state machine. Publishing is terminal: once published, joining is refused.</em></p>
+<p>Implementation notes worth showing at the booth:</p>
+<ul>
+<li><strong>Codes are human-transcribable.</strong> 8 characters drawn from an alphabet with <code>0/O/1/I</code> removed, uniqueness enforced by a database index; passwords are 6 characters, shown exactly once and stored as BCrypt hashes.</li>
+<li><strong>Only aggregates cross the wire.</strong> A member&#39;s contribution is a JSON array of group-level statistics; the union merge keeps a group if <em>any</em> member covers it, and a <code>sources</code> field records how many members support each group.</li>
+<li><strong>Boundary-safe PII scanning.</strong> The scanner keeps a 32-character tail so an ID number split across chunk boundaries is still caught.</li>
+<li><strong>PDF without a regex.</strong> An early build matched string literals with a regular expression over every stream and failed with a stack overflow on a 1.9 MB PDF containing large image streams; the shipped parser locates <code>stream</code>/<code>endstream</code> by <code>indexOf</code>, skips binary streams, and parses literals with a hand-written loop.</li>
+<li><strong>Evidence grounding.</strong> Model-returned evidence is substring-checked against parsed text; unverifiable quotes are replaced by a local snippet.</li>
+<li><strong>Secrets never leave the server.</strong> Provider keys are AES-256-GCM encrypted under a master key outside the database and version control; collaboration password hashes are stripped from every response through a dedicated view object, asserted by an automated test.</li>
+</ul>
+<h3>4.3 Deployment for the conference booth</h3>
+
+<div class="figure mermaid-box" data-idx="6"></div>
+
+<p class="caption"><em>Figure 11. Two-laptop booth setup; the dashed path removes any network dependency.</em></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Demo server</td>
+<td>1 laptop, 4 vCPU / 8 GB RAM, JDK 17+, PostgreSQL 16+</td>
+<td>all on localhost; about 1.3 GB disk with seed data</td>
+</tr>
+<tr>
+<td>Client</td>
+<td>modern Chromium-based browser, at least 1280x800 (1440x900 recommended)</td>
+<td>no plugin, no install</td>
+</tr>
+<tr>
+<td>Network</td>
+<td><strong>optional</strong></td>
+<td>with Internet: real DeepSeek endpoint; without: bundled OpenAI-compatible mock on port 9099</td>
+</tr>
+<tr>
+<td>Ports</td>
+<td>8080 (app), 5432 (DB), 9099 (mock, optional)</td>
+<td>loopback by default; opened only when sharing to Laptop B</td>
+</tr>
+<tr>
+<td>Startup</td>
+<td><code>createdb</code> then <code>kotlin.bat run</code> (or the packaged JAR)</td>
+<td>Flyway creates 19 tables; the seeder creates 5 accounts, 13 sample files, 2 listings, 1 demand and 1 two-member collaboration</td>
+</tr>
+<tr>
+<td>Reset between visitors</td>
+<td>one SQL script clearing tasks, results and collaborations</td>
+<td>under 1 s; accounts and files kept</td>
+</tr>
+<tr>
+<td>Accounts</td>
+<td>seller_a/sell1234, seller_b/sell1234, buyer/buy12345, demo/demo1234, admin/admin123</td>
+<td>printed on a booth card</td>
+</tr>
+<tr>
+<td>Fallbacks</td>
+<td>if the network dies mid-demo the router fails over to the mock in under 1 s and the UI labels judgments as local rules</td>
+<td>rehearsed</td>
+</tr>
+</tbody></table>
+<p><strong>Booth script (90 s):</strong> describe a product (S1), watch the build (S2), join a joint project with the code handed to the visitor (S3), post a demand and show pushed reasons (S4). Delivery (S5) answers &quot;and then what&quot;.</p>
+<h3>4.4 Verification</h3>
+<p>Rather than comparative experiments we ship six scripted end-to-end suites a reviewer can run at the booth:</p>
+<table>
+<thead>
+<tr>
+<th>Suite</th>
+<th>Coverage</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>collab-code-test</code></td>
+<td>code and password format, invite preview, wrong password 403, unknown code 404, join makes the product grow, idempotent rejoin, member adds folders, non-initiator cannot publish, publish, no join after publish, outsider 403</td>
+<td>29/29</td>
+</tr>
+<tr>
+<td><code>market-smoke-test</code></td>
+<td>build with receipt source hashes, list and delist with match invalidation, demand matching with reasons, three-state delivery, joint product from collaboration, permission isolation</td>
+<td>37/37</td>
+</tr>
+<tr>
+<td><code>seller-intent-test</code></td>
+<td>four natural-language scenarios map to the intended template, vague input still resolves, product created from a description, AI on by default</td>
+<td>11/11</td>
+</tr>
+<tr>
+<td><code>smoke-test</code></td>
+<td>auth, quota, chunked upload, dedup, recycle bin, admin</td>
+<td>27/27</td>
+</tr>
+<tr>
+<td><code>scan-progress-test</code></td>
+<td>async task, live progress, previews, crash-free parsing, preview authorization</td>
+<td>18/18</td>
+</tr>
+<tr>
+<td><code>ai-provider-smoke-test</code></td>
+<td>provider CRUD, key masking, connectivity test, failover, cooldown</td>
+<td>28/28</td>
+</tr>
+</tbody></table>
+<p>Measured on the demo laptop with a cloud LLM: a 5-row spreadsheet becomes a product in <strong>4.5 s</strong> end-to-end (parse, aggregate, describe); a joint product shows its first growth within one second of the second member joining.</p>
+<h3>4.5 Ethics, privacy and compliance</h3>
+<ul>
+<li><strong>Explicit, minimal authorization.</strong> Only ticked folders are opened; scope is persisted per member and echoed in the collaboration view. Registration is self-service and all demo data is synthetic.</li>
+<li><strong>Aggregation by construction.</strong> Products contain group-level statistics only, with k-anonymity (default k = 3) dropping sparse groups. Individual rows are never written to a product, a listing, or a collaboration payload.</li>
+<li><strong>Data minimisation towards third parties.</strong> Files whose content already carries an ID card, phone number, bank card or repost markers are filtered <strong>on the host</strong>; only the remaining text (at most 1200 chars per file, 6 files per call) or an explicitly requested image is sent to a model.</li>
+<li><strong>Traceability over fluency.</strong> Model evidence must appear verbatim in parsed text; build receipts bind each product to its source file hashes, and the market shows the receipt to buyers.</li>
+<li><strong>Secret handling.</strong> Provider keys are AES-256-GCM encrypted with a master key outside the database; collaboration passwords are BCrypt hashed, displayed exactly once, and never returned by any endpoint (asserted by an automated test).</li>
+<li><strong>Human oversight.</strong> Agents recommend and assemble; publishing a joint product is reserved for its initiator, and delivery is a human handshake. The system never auto-submits or redistributes content.</li>
+<li><strong>LLM limitations are surfaced.</strong> Every product states whether a model participated; unparsable files are listed with a reason rather than silently dropped.</li>
+</ul>
+<hr>
+<h2>5. Conclusion</h2>
+<p>AgentCloudDisk shows that an ordinary cloud drive can participate in a data-element market without surrendering its contents: streaming parsing plus on-host privacy filtering decides what may be shown and what may leave the machine, an LLM Agent turns authorized files into k-anonymous products from a one-sentence request, and a short session code lets several owners pool their statistics into a joint product that grows with each member. The whole loop — describe, build, collaborate, list, match, deliver — runs on one laptop, with or without Internet. We invite WWW attendees to bring a folder and a code.</p>
+<hr>
+<h2>References</h2>
+<p>[1] DeepSeek-AI, Aixin Liu, Bei Feng, et al. 2024. <em>DeepSeek-V3 Technical Report.</em> arXiv:2412.19437.</p>
+<p>[2] Bin Wang, Chao Xu, Xiaomeng Zhao, et al. 2024. <em>MinerU: An Open-Source Solution for Precise Document Content Extraction.</em> arXiv:2409.18839.</p>
+<p>[3] Haoran Wei, Yaofeng Sun, and Yukun Li. 2025. <em>DeepSeek-OCR: Contexts Optical Compression.</em> arXiv:2510.18234.</p>
+<p>[4] Brandon Smock, Rohith Pesala, and Robin Abraham. 2021. <em>PubTables-1M: Towards Comprehensive Table Extraction from Unstructured Documents.</em> arXiv:2110.00061.</p>
+<p>[5] Ildikó Pilán, Pierre Lison, Lilja Øvrelid, et al. 2022. <em>The Text Anonymization Benchmark (TAB): A Dedicated Corpus and Evaluation Framework for Text Anonymization.</em> arXiv:2202.00443.</p>
+<p>[6] Jordi Soria-Comas. 2013. <em>Improving Data Utility in Differential Privacy and k-Anonymity.</em> arXiv:1307.0966.</p>
+<p>[7] Jian Pei. 2020. <em>A Survey on Data Pricing: From Economics to Data Science.</em> arXiv:2009.04462.</p>
+<p>[8] Mengxiao Zhang, Fernando Beltran, and Jiamou Liu. 2023. <em>A Survey of Data Pricing for Data Marketplaces.</em> arXiv:2303.04810.</p>
+<p>[9] Khanh-Tung Tran, Dung Dao, Minh-Duong Nguyen, et al. 2025. <em>Multi-Agent Collaboration Mechanisms: A Survey of LLMs.</em> arXiv:2501.06322.</p>
+<p>[10] Lei Wang, Chen Ma, Xueyang Feng, et al. 2023. <em>A Survey on Large Language Model based Autonomous Agents.</em> arXiv:2308.11432.</p>
+<p>[11] Yunfan Gao, Yun Xiong, Xinyu Gao, et al. 2023. <em>Retrieval-Augmented Generation for Large Language Models: A Survey.</em> arXiv:2312.10997.</p>
+<p>[12] Zicun Cong, Xuan Luo, Jian Pei, et al. 2021. <em>Data Pricing in Machine Learning Pipelines.</em> arXiv:2108.07915.</p>
+<hr>
+<h3>Appendix A — Demo artifact checklist</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Runnable system (backend + frontend, single port)</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Seeded dataset (13 real files: DOCX/XLSX/PNG/ZIP/PDF) + 2 listings + 1 demand + 1 two-member collaboration</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Offline mode (local OpenAI-compatible mock)</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>One-command reset between visitors</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Six executable test suites printing pass/fail</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Screenshots and this paper (EN/ZH)</td>
+<td>yes</td>
+</tr>
+</tbody></table>
+
+</div>
+<script src="file:///E:/Code/AgentCloudDisk/docs/www2026/build/node_modules/mermaid/dist/mermaid.min.js" onload="window.__mermaidLoaded=true"></script>
+<script>
+// 等待 UMD 脚本真正执行完（onload 之后再等一帧），避免 mermaid is not defined
+async function waitMermaid() {
+  for (let i = 0; i < 400; i++) {
+    if (typeof window.mermaid !== 'undefined' && window.mermaid.initialize) return window.mermaid
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  throw new Error('mermaid bundle did not load')
+}
+;(async function () {
+  try {
+    const mermaid = await waitMermaid()
+    mermaid.initialize({
+      startOnLoad: false, theme: 'neutral',
+      flowchart: { curve: 'basis', padding: 4, nodeSpacing: 12, rankSpacing: 16, htmlLabels: true, useMaxWidth: true },
+      sequence: { actorMargin: 14, boxMargin: 4, messageFontSize: 7, noteFontSize: 7, useMaxWidth: true },
+      er: { entityPadding: 4, minEntityWidth: 50, useMaxWidth: true },
+      fontFamily: 'Inter, Arial, sans-serif', fontSize: 9, useMaxWidth: true
+    })
+    const blocks = JSON.parse(document.getElementById('mermaid-src').textContent)
+    const boxes = Array.prototype.slice.call(document.querySelectorAll('.mermaid-box'))
+    for (let i = 0; i < boxes.length; i++) {
+      const box = boxes[i]
+      const code = blocks[Number(box.dataset.idx)]
+      try {
+        const out = await mermaid.render('mmd' + i, code)
+        box.innerHTML = out.svg
+        const svg = box.querySelector('svg')
+        svg.removeAttribute('height')
+        svg.style.width = '100%'
+        svg.style.height = 'auto'
+        svg.style.maxHeight = '78mm'
+      } catch (e) {
+        box.innerHTML = '<pre style="color:#b00;font-size:7pt">diagram error: ' + String(e && e.message || e).slice(0, 160) + '</pre>'
+      }
+    }
+  } catch (e) {
+    document.getElementById('mermaid-src').insertAdjacentHTML('afterend',
+      '<pre style="color:#b00">mermaid init failed: ' + String(e && e.message || e) + '</pre>')
+  }
+  window.__renderDone = true
+})()
+</script>
+</body></html>
