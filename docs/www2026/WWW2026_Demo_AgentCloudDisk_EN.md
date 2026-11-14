@@ -1,4 +1,4 @@
-# AgentCloudDisk: An LLM-Agent-Assisted Cloud-Drive System for Data-Element Bounty Matching
+# AgentCloudDisk: A Multi-Agent Cloud-Drive System for Turning Personal Data into Tradeable Data Products
 
 **Demo Paper — WWW '26 Companion (Demo Track)**
 
@@ -9,188 +9,215 @@
 
 ## Abstract
 
-Valuable data is scattered inside personal and enterprise cloud drives (business ledgers, lab notes, spreadsheets, photos), yet conventional drives only offer keyword search over metadata. Data demanders therefore publish **bounties** describing the content they need, while drive owners have no automated way to tell whether their files are relevant — manual triage is slow, leaks private content, and is error-prone. We present **AgentCloudDisk**, a runnable cloud-drive system in which an LLM agent matches a user's *authorized* file scope against enterprise bounties. The system parses real file content with streaming readers (row-streaming spreadsheets, StAX-based Word, a hand-written non-recursive PDF parser, on-device OCR, controlled archive unpacking), detects sensitive information *while* parsing with a boundary-safe scanner, and only then asks a DeepSeek-class model to judge relevance under an *evidence-grounding* constraint: every quoted snippet must appear verbatim in the parsed text. Sensitive files never leave the host. Visitors can watch the scan stream file-by-file, inspect evidence and risk tags, preview parsed tables/documents/images, and review candidates. A multi-provider console manages several LLM vendors with AES-256-GCM-encrypted keys and automatic failover. A full bounty-to-review loop runs end-to-end on a single laptop.
+Valuable data sits dormant inside personal and enterprise cloud drives — commute logs, recipe notes, feeding tables, reading records — yet conventional drives offer only metadata search, so owners cannot turn this material into anything sellable. We present **AgentCloudDisk**, a runnable cloud-drive system in which an LLM Agent acts on behalf of each owner: given a one-sentence product request it selects an aggregation template, parses the owner's *authorized* files with streaming readers (row-streaming spreadsheets, StAX-based Word, a hand-written non-recursive PDF parser, on-device OCR, controlled archive unpacking), aggregates into a k-anonymous product, and publishes it to a data market where buyers post demands and receive matched listings. Two mechanisms carry the demo: **multi-agent collaboration**, where owners join a joint product with a short session code and password and the product grows monotonically as members contribute; and **host-confined privacy**, where sensitive files are filtered before any model call, model-produced evidence is verified against parsed text, and only aggregate statistics ever leave a member's drive. A visitor can describe a product from their own folder and watch a joint product grow by redeeming a code, on one laptop.
 
-**Keywords:** data elements; cloud drive; LLM agent; bounty matching; privacy-preserving parsing; document understanding
+**Keywords:** data elements; cloud drive; LLM agent; multi-agent collaboration; privacy-preserving data publishing; data marketplaces
 
 ---
 
 ## 1. Introduction
 
-Data elements are becoming a first-class production factor, and marketplaces increasingly let data demanders post *bounties* that specify the business scenario, required fields, time range, formats, and compliance constraints. In practice, however, the supply side is not a curated warehouse: the raw material sits in ordinary **cloud drives** as heterogeneous files — scanned receipts, hand-written recipe photos, Excel ledgers, Word drafts, PDF reports.
+Data elements have become a production factor, and marketplaces increasingly let demanders post *demands* while suppliers list *products*. In practice the suppliers are not curated warehouses: the raw material lies in ordinary **cloud drives** as heterogeneous files — commute spreadsheets, hand-written recipe photos, feeding logs, PDF reports.
 
-Three gaps follow:
+Three gaps motivate this demo:
 
-1. **Search is metadata-deep.** Existing drives match filenames and types. A bounty such as "home-cooked recipe material from your own kitchen" cannot be answered by the string `recipe`.
-2. **Content must be inspected, but privacy forbids uploading everything.** Content-based matching implies reading files; naive designs ship raw documents to a third-party model, which is unacceptable for personal and enterprise data.
-3. **Owners need authorization, evidence, and audit.** A recommendation without quoted evidence and a risk warning is not actionable, and a scan without a scoped authorization record is not auditable.
+1. **Drives stop at metadata.** A request such as "aggregate my commute time by line" cannot be answered by a filename search, and a drive offers no way to become a *product*.
+2. **Turning files into a product requires understanding content, but not uploading it.** Content-based aggregation implies reading files; shipping raw documents to a third party is unacceptable for personal data.
+3. **Individual drives are too small to be valuable, yet naive collaboration leaks.** One person's commute log is thin; combining several owners' logs gives a statistically meaningful product, but naive combination exchanges raw records and enables cross-referencing attacks.
 
-Our demo addresses these gaps with a **working system**, not a prototype mock-up. Our contributions are:
+Our demo answers these with a **working system**, not a mock-up. Contributions:
 
-- **C1 — End-to-end runnable loop.** Cloud-drive base (accounts, quotas, chunked upload with SHA-256 deduplication, recycle bin, previews) plus bounty publishing, scoped agent scanning, human review, and admin audit, exposed through one web UI and 45 REST endpoints.
-- **C2 — Streaming, boundary-safe content parsing.** Spreadsheets are read row-by-row (EasyExcel), Word via StAX, PDF via a hand-written literal-string parser with binary-stream filtering, images via on-device OCR, archives via controlled unpacking. Parsing and *sensitive-information detection* happen in the same pass, with an overlap window so patterns split across chunk boundaries are still caught.
-- **C3 — Evidence-grounded, host-confined LLM judging.** Sensitive files are filtered **before** any network call; for the rest, the model must return verbatim evidence, which the server verifies against the parsed text and replaces with a local snippet if it cannot be found.
-- **C4 — Operations that a data platform actually needs.** Multi-vendor model console with AES-256-GCM key encryption at rest and priority-based failover with cooldown, plus an explicit reliability gate that refuses to judge on garbled text.
+- **C1 — Agents that produce products, not search results.** Each owner's Agent converts authorized raw files into an aggregated *data product* with schema, coverage, quality score, masked samples and a reproducible build receipt.
+- **C2 — Natural-language product authoring.** Users describe what they want in one sentence; the Agent selects a template, states its confidence and reasoning, and shows the fields it will produce — no template vocabulary required.
+- **C3 — Code-based multi-agent collaboration.** An initiator creates a joint project and receives a short **session code** plus **password**; other owners redeem them to join, contributing only group-level statistics, and the joint product grows with each member.
+- **C4 — Host-confined, verifiable privacy.** Sensitive content is filtered on the host before any network call; the market exposes only aggregate descriptions; a per-product receipt binds the product to its source file hashes.
 
-**On-site goal:** a visitor should be able to publish a bounty as an enterprise user, authorize one folder as a personal user, watch the agent scan their own seeded files live, and leave with a graded, evidence-backed report — in under three minutes.
+**On-site goal:** a visitor should be able to describe one product in plain language, watch the Agent parse and aggregate, then join a joint project with a code and see the product grow — in under three minutes.
 
 ---
 
 ## 2. System Overview and Architecture
 
-### 2.1 Roles and workflow
+### 2.1 Roles and loop
 
-Three roles share one Spring Boot deployment: **personal user** (owns files, grants scope), **enterprise demander** (publishes bounties, sees only aggregate statistics), and **administrator** (users/quotas, bounty enable/disable, scan audit). Enterprise users can never read a personal user's files or evidence — a cross-role request returns HTTP 403.
+Every account is bidirectionally capable (buyer and seller); an administrator handles models, users and audits.
 
 ```mermaid
 flowchart LR
-    E["Enterprise demander"] -->|"1. publish bounty (NL)"| B["data_bounty<br/>structured JSON"]
-    P["Personal user"] -->|"2. authorize folder scope"| S["agent_scan_task"]
-    B --> S
-    S -->|"3. streaming parse + PII scan"| R["agent_scan_result<br/>evidence + risk"]
-    R -->|"4. LLM judge (grounded)"| R
-    R -->|"5. graded report"| P
-    P -->|"6. confirm / reject"| R
-    S --> A["Admin audit"]
-    B --> A
+    subgraph Sellers["Data sellers — one Agent per owner"]
+        U1["Owner drive raw files"] --> A1["Agent parse · aggregate · de-identify"]
+        U2["Owner drive raw files"] --> A2["Agent"]
+        A1 <-->|"session code + password, group stats only"| A2
+        A1 --> P1["Data product"]
+        A1 & A2 --> P3["Joint product grows per member"]
+    end
+    P1 & P3 -->|"owner publishes"| M["Data market"]
+    B["Buyer (same user)"] -->|"post demand"| M
+    M -->|"matched listings pushed"| B
 ```
 
-*Figure 1. End-to-end loop: bounty → authorization → scan → grounded judgment → human review → audit.*
+*Figure 1. Seller-side agents produce products; the market only ever sees descriptions.*
 
 ### 2.2 Architecture
 
 ```mermaid
 flowchart TB
-    subgraph FE["Browser (Vue 3 + Element Plus)"]
-        V1["Drive / preview"]
-        V2["Bounty square"]
-        V3["Agent scan + live progress"]
-        V4["Admin console"]
+    subgraph FE["Browser — Vue 3 + Element Plus"]
+        V1["Drive and preview"]
+        V2["My data products (seller studio)"]
+        V3["Data market (buyer view)"]
+        V4["Collaboration (code + password)"]
+        V5["Admin console"]
     end
 
     subgraph BE["Single Spring Boot 4.1.1 / Kotlin process :8080"]
-        C["Controllers<br/>45 REST endpoints"]
-        AUTH["JWT + BCrypt<br/>role guard"]
-        SCAN["Scan orchestrator<br/>thread pool, progress registry"]
-        PARSE["Streaming parsers<br/>EasyExcel · StAX · PDF · OCR · ZIP"]
-        PII["Boundary-safe PII scanner<br/>(32-char overlap)"]
-        JUDGE["LLM judge<br/>evidence grounding"]
-        LLM["Provider router<br/>priority + failover"]
-        CRYPT["AES-256-GCM<br/>key vault service"]
+        C["76 REST endpoints"]
+        AUTH["JWT + BCrypt role guard"]
+        AGENT["Seller agent: template, build, progress"]
+        PARSE["Streaming parsers: EasyExcel, StAX, PDF, OCR, ZIP"]
+        PII["Boundary-safe PII scanner (32-char overlap)"]
+        COLLAB["Collaboration coordinator: code, join, merge"]
+        MARKET["Market engine: filter, score, push"]
+        LLM["Provider router: priority + failover"]
+        CRYPT["AES-256-GCM key vault"]
     end
 
     subgraph DATA["Persistence"]
-        PG[("PostgreSQL 18<br/>8 tables · Flyway V1–V6")]
-        FS[("Content-addressed store<br/>sha256/ab/cd/sha256")]
+        PG[("PostgreSQL 18 — 19 tables, Flyway V1-V9")]
+        FS[("Content-addressed store")]
     end
 
     subgraph EXT["Optional external"]
-        DS["DeepSeek / OpenAI-compatible LLM"]
-        MOCK["Local mock provider<br/>(offline demo)"]
+        DS["DeepSeek / OpenAI-compatible"]
+        MOCK["Local mock provider"]
     end
 
     V1 --> C
     V2 --> C
-    V3 -->|"poll /progress every 400ms"| C
+    V3 --> C
     V4 --> C
+    V5 --> C
     C --> AUTH
-    C --> SCAN
-    SCAN --> PARSE --> PII --> JUDGE --> LLM
+    C --> AGENT
+    AGENT --> PARSE
+    PARSE --> PII
+    C --> COLLAB
+    COLLAB --> PARSE
+    C --> MARKET
+    AGENT --> LLM
+    COLLAB --> LLM
     LLM --> CRYPT
-    LLM -->|"only non-sensitive text"| DS
+    LLM -->|"de-identified text / images"| DS
     LLM --> MOCK
     C --> PG
     PARSE --> FS
 ```
 
-*Figure 2. Component view. Everything except the optional LLM call runs inside one JVM; the file store is content-addressed and shared by all users via `file_meta`.*
+*Figure 2. Component view. Everything except the optional model call runs inside one JVM.*
+
+| Layer | Technology | Note |
+| --- | --- | --- |
+| Backend | Spring Boot 4.1.1, Kotlin, Amper/Kotlin Toolchain | one process, port 8080 |
+| Persistence | PostgreSQL 18, MyBatis 4.1, Flyway 13.12 | 9 versioned migrations, 19 tables |
+| Files | content-addressed local store, SHA-256 dedup | 5 MB resumable chunks |
+| Parsing | EasyExcel 4.0.3, StAX, custom PDF reader, Windows.Media.Ocr, java.util.zip | all streaming |
+| LLM | DeepSeek / any OpenAI-compatible endpoint, JSON mode | pluggable, with failover |
+| Security | BCrypt, HS256 JWT, AES-256-GCM (12-byte IV, 128-bit tag) | keys never stored in plaintext |
+| Frontend | Vue 3.5, Vite 6, Element Plus 2.9 | light/dark, 1440x900 |
 
 ### 2.3 Data model
 
 ```mermaid
 erDiagram
     user ||--o{ user_file : owns
-    user ||--o{ data_bounty : publishes
-    user ||--o{ agent_scan_task : authorizes
-    file_meta ||--o{ user_file : "referenced by"
-    data_bounty ||--o{ agent_scan_task : scanned_for
-    agent_scan_task ||--o{ agent_scan_result : produces
-    user_file ||--o{ agent_scan_result : evaluated_as
+    file_meta ||--o{ user_file : backs
+    user ||--o{ data_product : produces
+    data_product ||--o{ product_build_task : "built by"
+    product_build_task ||--o{ product_build_item : consumes
+    data_product ||--o{ product_listing : "listed as"
+    user ||--o{ market_demand : posts
+    product_listing ||--o{ market_match : "matched to"
+    market_demand ||--o{ market_match : "matched by"
+    market_match ||--o{ delivery_request : converts
+    collab_session ||--o{ collab_member : has
+    collab_session ||--o{ collab_contribution : collects
 ```
 
-*Figure 3. Eight tables. `file_meta` (SHA-256 unique) deduplicates content across users; `ai_provider` stores only ciphertext, IV and GCM tag.*
-
-| Layer | Technology | Note |
-| --- | --- | --- |
-| Backend | Spring Boot 4.1.1, Kotlin, Amper/Kotlin Toolchain | one process, port 8080 |
-| Persistence | PostgreSQL 18, MyBatis 4.1.0, Flyway 13.12 | 6 versioned migrations |
-| Files | Content-addressed local store + SHA-256 dedup | 5 MB chunks, resumable |
-| Parsing | EasyExcel 4.0.3, StAX, custom PDF reader, Windows.Media.Ocr, java.util.zip | all streaming |
-| LLM | DeepSeek / any OpenAI-compatible endpoint, JSON mode | pluggable per provider |
-| Security | BCrypt, HS256 JWT, AES-256-GCM (12-byte IV, 128-bit tag) | keys never in DB plaintext |
-| Frontend | Vue 3.5, Vite 6, Element Plus 2.9 | light/dark, 1440×900 |
+*Figure 3. Nineteen tables; file_meta deduplicates content across owners, collab_member tracks per-member scope and contribution.*
 
 ---
 
 ## 3. Demo Scenarios and Features
 
-The demo is a guided 3-minute tour with two browser windows (enterprise and personal), plus an optional console stop.
+The booth tour runs in three minutes across three pages using two accounts.
 
-### S1 — Publish a bounty in natural language (30 s)
-The enterprise user types free text ("*I want home-cooked recipe material you made yourself; documents, tables or photos are fine; no reposted influencer recipes*"). On submit, the LLM (or a rule fallback) converts it into a structured requirement — domain, accepted formats, match keywords, exclusion list, recency preference — shown as tags and stored in `structured_json`. The card in the bounty square displays a "parsed by LLM / by rules" provenance tag.
+### S1 — Describe a product in one sentence (30 s)
 
-*Input:* free text up to 4k chars. *Output:* structured object + bounty card (Fig. 4).
+The owner types *"turn my commute records into average duration per line"*. Debounced 500 ms later the Agent answers inline: **template = Commute Timeliness, confidence 98%**, one sentence of reasoning, and the exact fields it will produce (route, departure, arrival, duration, transfers). A rule-based fallback guarantees an answer even with no model configured.
 
-![Bounty square](../../screenshots/10-bounties.png)
+*Input:* free text up to 200 chars. *Output:* template + confidence + reasoning + field list.
 
-*Figure 4. Bounty square. Tags show the structured requirement and its provenance.*
+![Agent understands the request](../../screenshots/30-agent-understands.png)
 
-### S2 — Authorize a scope (15 s)
-The personal user opens **Agent**, picks the bounty, and ticks folders in a tree (e.g. *Personal / Snapshots*). Only ticked subtrees are traversed; the ticked node IDs are persisted as `auth_scope_json` and shown in the report as "scanned only: …".
+*Figure 4. Natural-language authoring with an explicit, inspectable interpretation.*
 
-### S3 — Watch the scan live (30 s)
-Pressing **Start scan** returns immediately; the UI polls `GET /api/agent/tasks/{id}/progress` every 400 ms and renders: current stage (*parsing → semantic judging → writing results*), the file being parsed right now, processed/total, and a streaming event list with parse method and risk tag per file (Fig. 5).
+### S2 — Watch the Agent parse and aggregate (30 s)
 
-![Live scan progress](../../screenshots/19-scan-progress.png)
+The owner ticks folders; only those subtrees are read. The build dialog streams per-file events ("parsed", "streamed Excel", "skipped") and ends with a product card showing *N groups · M files · quality score*, plus a **4-row preview table** of the aggregated result. Files containing ID numbers or phone numbers are excluded before any model call, and the card states the privacy rule in plain language.
 
-*Figure 5. Live scan. Each row appears as soon as its file is parsed: "抽正文（流式）" (streaming text), "Excel 流式读取" (row-streamed Excel), with 手机号 (phone) and 网络搬运 (reposted content) risk tags.*
+![Plain-language product card](../../screenshots/29-seller-plain-language.png)
 
-### S4 — Read the graded report (40 s)
-The report follows a fixed six-part template: (i) restated requirement, (ii) scope and coarse filtering, (iii) list of files *actually parsed* with the method used, (iv) graded recommendations (high/medium/low/not-recommended) with quoted evidence, (v) high-risk and excluded items, (vi) human-review reminders. Sensitive or reposted files are excluded from recommendations and listed with the reason.
+*Figure 5. Product card written for non-technical owners; the warning appears only when the description and the chosen files disagree.*
 
-![Report top](../../screenshots/11-agent-report-top.png)
+### S3 — Join a joint product with a code (45 s)
 
-*Figure 6. Report header: counts, restated requirement, exclusion keywords, and the per-file parse-method table with judge provenance.*
+Owner A creates a joint project; a dialog returns an 8-character **session code** (e.g. `XPRZ98NB`) and a 6-character **password**, shown once with copy buttons. Owner B enters both, sees an invite card (title, initiator, current members, fields produced) *before* committing, ticks their own folder and joins. The joint product's group count increases immediately; members may later add folders to grow it further.
 
-### S5 — Preview parsed content (20 s)
-Every row has **Preview**. Spreadsheets are re-rendered as a real table using the retained header and first 12 rows; documents show the extracted text; images show the original picture — each with its parse method and risk note (Fig. 7, Fig. 8).
+```mermaid
+sequenceDiagram
+    participant A as Agent A (initiator)
+    participant H as Collaboration hub
+    participant B as Agent B (member)
+    A->>H: one-sentence request + folder scope
+    H-->>A: session code + password (shown once)
+    A->>B: share code and password out of band
+    B->>H: redeem code + password
+    H-->>B: invite preview (title, initiator, members, fields)
+    B->>H: tick own folder, join
+    Note over H: each side aggregates locally,<br/>only group statistics are exchanged
+    H-->>A: joint product grows (groups, contributing sources)
+    A->>H: publish (initiator only)
+```
 
-| Table preview | Document preview |
+*Figure 6. Code-based collaboration. Only the initiator may publish; members can view and extend their own scope.*
+
+| Joint-product list | Owner view |
 | --- | --- |
-| ![Table preview](../../screenshots/20-scan-preview-table.png) | ![Document preview](../../screenshots/21-scan-preview-text.png) |
+| ![Collaboration list](../../screenshots/32-collab-list.png) | ![Owner view](../../screenshots/31-collab-owner.png) |
 
-*Figure 7. Post-scan previews produced from the same streaming pass (header + 12 rows / extracted body).*
+*Figure 7. Session list with codes (left) and the owner view with the publish button (right); members instead see "only the initiator can publish".*
 
-### S6 — Multi-provider console and failover (40 s, optional)
-The admin registers two providers (e.g. a real cloud endpoint at priority 10 and an unreachable one at priority 1), runs **Test**, then triggers a scan: the first provider fails, the router fails over to the next within the same request, the failed provider is marked unhealthy and cooled down for 60 s, and the console shows the switch count. Keys are entered once, displayed only as `sk-****7a07`, and stored as ciphertext + IV + GCM tag (Fig. 9).
+### S4 — Market matching and push (30 s)
 
-![Model management](../../screenshots/17-admin-ai-providers.png)
+A buyer posts a demand in natural language. The market parses it into a structured requirement, hard-filters listings by keyword and domain, scores the survivors (keyword overlap, temporal coverage, quality, price), and pushes the top matches with **human-readable reasons** ("matched keywords: commute, duration; coverage until 2026-03"). Listings expose fields, coverage, quality, masked samples and the build receipt — never a raw filename.
 
-*Figure 8. Provider console: per-provider health, encrypted-key badge, priority ordering, one-click connectivity test.*
+![Data market](../../screenshots/27-market-catalog.png)
 
-### S7 — Audit and review (20 s)
-The personal user marks candidates *confirmed* / *rejected* with a note; the admin opens **Scan audit** to see every task's initiator, scope size, parse success/failure counts and timestamps.
+*Figure 8. Market catalogue. Summaries and tags are visible; original files are not.*
+
+### S5 — Minimal delivery handshake (15 s)
+
+Buyer requests delivery, seller accepts, seller marks delivered. Three states, no payload transfer, matching the demo's scope.
 
 ### What the audience can touch
+
 | Scenario | Audience action | Visible result |
 | --- | --- | --- |
-| S1 | type a bounty in their own words | structured tags appear in < 5 s |
-| S2 | tick / untick folders | scope line in the report changes |
-| S3 | start scan, watch | per-file events stream in; ~7 s for 9 files |
-| S4 | read grading | evidence snippets + risk tags |
-| S5 | click Preview | real table / text / image |
-| S6 | break a provider | automatic failover, cooldown badge |
-| S7 | review + audit | persisted decisions and audit rows |
+| S1 | type their own one-liner | interpretation appears in under 1 s |
+| S2 | tick folders, start build | per-file events; about 4.5 s for a 5-row sheet |
+| S3 | redeem a code the presenter hands out | joint product grows live |
+| S4 | post a demand | ranked pushes with reasons |
+| S5 | request delivery | three-state handshake |
 
 ---
 
@@ -199,136 +226,103 @@ The personal user marks candidates *confirmed* / *rejected* with a note; the adm
 ### 4.1 Processing pipeline
 
 ```mermaid
-sequenceDiagram
-    participant U as Personal user
-    participant API as REST API
-    participant Q as Scan thread pool
-    participant P as Streaming parser
-    participant D as PII scanner (32-char overlap)
-    participant L as LLM router
-    U->>API: POST /agent/scan {bountyId, scopeFileIds}
-    API->>API: validate scope, insert task, register progress
-    API-->>U: 202-style {taskId, status=running}
-    loop every file in authorized scope
-        Q->>P: parse(file) streamed
-        P->>D: chunks / rows / paragraphs
-        D-->>Q: risk tag or clean
-        Q-->>U: progress event (poll)
-    end
-    Q->>L: judge(clean files + requirement)
-    L-->>Q: {level, evidence, reason}
-    Q->>Q: verify evidence ⊆ parsed text
-    Q->>API: persist results + finish task
-    U->>API: GET /agent/tasks/{id}
-    API-->>U: six-part report
-```
-
-*Figure 9. Scan orchestration. Parsing never blocks the HTTP thread; the report is assembled from persisted rows.*
-
-### 4.2 Streaming parsing and "in-flight" privacy filtering
-
-```mermaid
 flowchart TD
-    F["File in authorized scope"] --> T{"Extension"}
-    T -->|xlsx/xls| X["EasyExcel row-stream<br/>scan each row"]
-    T -->|docx| W["StAX over word/document.xml<br/>scan each run"]
-    T -->|txt/csv/md| T2["8 KB character chunks"]
-    T -->|pdf| P["indexOf stream scan<br/>skip image/font/meta<br/>hand-written literal parser"]
-    T -->|png/jpg| O["Windows.Media.Ocr"]
-    T -->|zip| Z["controlled unpacking<br/>inner text streamed, ≤3 OCR"]
-    X --> SC["SensitiveStreamScanner<br/>ID / phone / bank card + repost markers"]
-    W --> SC
-    T2 --> SC
-    P --> SC
-    O --> SC
-    Z --> SC
-    SC -->|hit| RISK["mark high risk,<br/>never sent to model"]
-    SC -->|clean| JUDGE["LLM judge"]
-    P -->|"unmapped subset font"| UNP["honest: unparsed + reason"]
-
+    D["One-sentence request"] --> I["Agent selects template + confidence + reasoning"]
+    I --> F["Owner's ticked folders only"]
+    F --> P["Streaming parse: xlsx, docx, pdf, OCR, zip"]
+    P --> G{"Pre-flight checks"}
+    G -->|"ID / phone / bank card"| X["exclude, recorded in receipt"]
+    G -->|"repost markers"| X
+    G -->|"unparsed"| X
+    G -->|"clean"| T["Extract rows by template"]
+    T --> A["Aggregate by dimension, k-anonymity drops small groups"]
+    A --> R["Build receipt: source sha256 + params + model"]
+    R --> PR["Product draft, then list or join"]
 ```
 
-*Figure 10. Per-format streaming strategies and the single shared scanner.*
+*Figure 9. Seller-side pipeline. Products contain only aggregates, so listing cannot leak individual records.*
 
-Key implementation notes that we will highlight on the poster:
+Four built-in templates (commute timeliness, home-recipe library, pet-feeding records, reading notes) are fixed so that products stay comparable and verifiable; the natural-language layer only maps requests onto them.
 
-- **Boundary-safe scanning.** The scanner keeps a 32-character tail so a 18-digit ID card or 11-digit phone split across two chunks is still matched; matched values are masked before display.
-- **PDF without a regex.** An early version matched string literals with `\((?:[^()\\]|\\.)*\)` over *every* stream and died with `StackOverflowError` on a 1.9 MB PDF containing 380 KB/950 KB image streams. The shipped version locates `stream`/`endstream` by `indexOf`, skips binary streams, and parses literals with a hand-written loop (no regex, no recursion).
-- **Refusing to judge garbage.** If a PDF uses embedded subset fonts without usable Unicode mapping, the extracted text is glyph codes; the system marks it *unparsed with a reason* rather than feeding noise to the model.
-- **Evidence grounding.** LLM-returned evidence is normalized and substring-checked against the parsed text; unverifiable quotes are replaced by a local snippet, so every visible citation is traceable.
-
-### 4.3 Provider routing and key protection
+### 4.2 Collaboration protocol
 
 ```mermaid
 flowchart LR
-    R["chatJson()"] --> C{"candidates<br/>status=1 sorted by priority"}
-    C --> H{"cooled down?"}
-    H -->|yes| Q["try last"]
-    H -->|no| CALL["POST /chat/completions<br/>JSON mode"]
-    CALL -->|2xx + JSON| OK["record success, clear cooldown"]
-    CALL -->|4xx/5xx/timeout| FB["record failure,<br/>cooldown 60 s"]
-    FB --> C
-    Q --> CALL
-
+    C["create: code + password"] --> J["join by code, password verified with BCrypt"]
+    J --> AGG["member aggregates locally"]
+    AGG --> MERGE["union of group statistics, no raw rows"]
+    MERGE --> GROW["product grows: groups up, sources up"]
+    GROW --> PUB["initiator publishes"]
+    GROW -.->|"member adds folders"| AGG
 ```
 
-*Figure 11. Failover loop. Keys are decrypted in memory only for the duration of one request.*
+*Figure 10. Collaboration state machine. Publishing is terminal: once published, joining is refused.*
 
-Key handling follows the classic "no cloud KMS" pattern: a 32-byte master key comes from `APP_MASTER_KEY` (or a git-ignored local key file on a demo laptop), each encryption uses a fresh 12-byte IV, and ciphertext/IV/tag are stored in separate columns with `encrypt_algo = aes-gcm-256`. The API never returns plaintext.
+Implementation notes worth showing at the booth:
 
-### 4.4 Deployment for the conference booth
+- **Codes are human-transcribable.** 8 characters drawn from an alphabet with `0/O/1/I` removed, uniqueness enforced by a database index; passwords are 6 characters, shown exactly once and stored as BCrypt hashes.
+- **Only aggregates cross the wire.** A member's contribution is a JSON array of group-level statistics; the union merge keeps a group if *any* member covers it, and a `sources` field records how many members support each group.
+- **Boundary-safe PII scanning.** The scanner keeps a 32-character tail so an ID number split across chunk boundaries is still caught.
+- **PDF without a regex.** An early build matched string literals with a regular expression over every stream and failed with a stack overflow on a 1.9 MB PDF containing large image streams; the shipped parser locates `stream`/`endstream` by `indexOf`, skips binary streams, and parses literals with a hand-written loop.
+- **Evidence grounding.** Model-returned evidence is substring-checked against parsed text; unverifiable quotes are replaced by a local snippet.
+- **Secrets never leave the server.** Provider keys are AES-256-GCM encrypted under a master key outside the database and version control; collaboration password hashes are stripped from every response through a dedicated view object, asserted by an automated test.
+
+### 4.3 Deployment for the conference booth
 
 ```mermaid
 flowchart LR
-    L1["Laptop A<br/>demo server<br/>JDK 17+ / 8 GB"] -->|"localhost:8080"| S["Spring Boot<br/>+ static SPA"]
-    S --> PG[("PostgreSQL 18<br/>localhost:5432")]
-    L2["Laptop B<br/>optional audience view"] -->|"same Wi-Fi, http://a.b.c.d:8080"| S
-    S -.->|"optional"| NET["Internet<br/>DeepSeek API"]
-    S -.->|"offline mode"| MOCK["local mock provider<br/>:9099"]
+    L1["Laptop A: demo server, JDK 17+, 8 GB"] -->|"localhost:8080"| S["Spring Boot + static SPA"]
+    S --> PG[("PostgreSQL 18 on localhost:5432")]
+    L2["Laptop B: audience screen"] -->|"same Wi-Fi, http://a.b.c.d:8080"| S
+    S -.->|"optional"| NET["Internet: DeepSeek API"]
+    S -.->|"offline mode"| MOCK["local mock provider :9099"]
 ```
 
-*Figure 12. Two-laptop booth setup; the LLC path (offline mock) removes any network dependency.*
+*Figure 11. Two-laptop booth setup; the dashed path removes any network dependency.*
 
 | Item | Requirement | Notes |
 | --- | --- | --- |
-| Demo server | 1 laptop, 4 vCPU / 8 GB RAM, JDK 17+, PostgreSQL 16+ | everything on `localhost`; 1.2 GB disk with seed data |
-| Client | any modern Chromium-based browser, ≥ 1280×800 (1440×900 recommended) | no plugin, no install |
-| Network | **optional** | with Internet: real DeepSeek endpoint; without: bundled OpenAI-compatible mock on `:9099` |
-| Ports | 8080 (app), 5432 (DB), 9099 (mock, optional) | all bound to loopback unless sharing to Laptop B |
-| Startup | `createdb` → `./kotlin.bat run` (or the packaged JAR) | Flyway creates the 8 tables; seeder creates 3 accounts, 5 bounties, 13 sample files |
-| Reset between visitors | one SQL script truncating `agent_scan_task/result` | < 1 s, keeps accounts and files |
-| Accounts | `enterprise/ent12345`, `demo/demo1234`, `admin/admin123` | printed on a booth card |
-| Fallbacks | if the network dies mid-demo, the router fails over to the mock in < 1 s and the UI tags judgments as "local rules" | rehearsed |
+| Demo server | 1 laptop, 4 vCPU / 8 GB RAM, JDK 17+, PostgreSQL 16+ | all on localhost; about 1.3 GB disk with seed data |
+| Client | modern Chromium-based browser, at least 1280x800 (1440x900 recommended) | no plugin, no install |
+| Network | **optional** | with Internet: real DeepSeek endpoint; without: bundled OpenAI-compatible mock on port 9099 |
+| Ports | 8080 (app), 5432 (DB), 9099 (mock, optional) | loopback by default; opened only when sharing to Laptop B |
+| Startup | `createdb` then `kotlin.bat run` (or the packaged JAR) | Flyway creates 19 tables; the seeder creates 5 accounts, 13 sample files, 2 listings, 1 demand and 1 two-member collaboration |
+| Reset between visitors | one SQL script clearing tasks, results and collaborations | under 1 s; accounts and files kept |
+| Accounts | seller_a/sell1234, seller_b/sell1234, buyer/buy12345, demo/demo1234, admin/admin123 | printed on a booth card |
+| Fallbacks | if the network dies mid-demo the router fails over to the mock in under 1 s and the UI labels judgments as local rules | rehearsed |
 
-**Booth script (90 s):** publish bounty (S1) → tick folder (S2) → start scan and narrate the streamed events (S3) → open one table preview (S5) → mark one candidate confirmed (S7). The provider console (S6) is the "deep-dive" for reviewers who ask about reliability.
+**Booth script (90 s):** describe a product (S1), watch the build (S2), join a joint project with the code handed to the visitor (S3), post a demand and show pushed reasons (S4). Delivery (S5) answers "and then what".
 
-### 4.5 Verification
+### 4.4 Verification
 
-Rather than comparative experiments, we ship four scripted end-to-end suites that a reviewer can run at the booth:
+Rather than comparative experiments we ship six scripted end-to-end suites a reviewer can run at the booth:
 
 | Suite | Coverage | Result |
 | --- | --- | --- |
+| `collab-code-test` | code and password format, invite preview, wrong password 403, unknown code 404, join makes the product grow, idempotent rejoin, member adds folders, non-initiator cannot publish, publish, no join after publish, outsider 403 | 29/29 |
+| `market-smoke-test` | build with receipt source hashes, list and delist with match invalidation, demand matching with reasons, three-state delivery, joint product from collaboration, permission isolation | 37/37 |
+| `seller-intent-test` | four natural-language scenarios map to the intended template, vague input still resolves, product created from a description, AI on by default | 11/11 |
 | `smoke-test` | auth, quota, chunked upload, dedup, recycle bin, admin | 27/27 |
-| `agent-smoke-test` | roles, publish, scoped scan, OCR/PDF/ZIP parsing, risk exclusion, review, 403 isolation, audit | 29/29 |
-| `ai-provider-smoke-test` | provider CRUD, key masking, connectivity test, failover, cooldown, validation | 29/29 |
-| `scan-progress-test` | async task, live progress, previews, crash-free parsing, preview authorization | 19/19 |
+| `scan-progress-test` | async task, live progress, previews, crash-free parsing, preview authorization | 18/18 |
+| `ai-provider-smoke-test` | provider CRUD, key masking, connectivity test, failover, cooldown | 28/28 |
 
-Measured on the demo laptop with a cloud LLM: **9 mixed files in 6.8 s** (6 judged by the model) and **5 image-heavy files in 12.4 s** (OCR-bound). With the local mock, the same scopes finish in roughly half the time.
+Measured on the demo laptop with a cloud LLM: a 5-row spreadsheet becomes a product in **4.5 s** end-to-end (parse, aggregate, describe); a joint product shows its first growth within one second of the second member joining.
 
-### 4.6 Ethics, privacy and compliance
+### 4.5 Ethics, privacy and compliance
 
-- **Explicit, minimal authorization.** Nothing outside the ticked folders is opened; the scope is persisted with the task and echoed in the report. Registration is self-service and the demo dataset is synthetic.
-- **Data minimisation towards third parties.** Files whose content already contains an ID card, phone number, bank card or repost markers are filtered **on the host**; only the remaining text (≤ 1 200 chars per file, ≤ 6 files per call) is sent to the model. The model never receives images, archives or full documents.
-- **Traceability over fluency.** Quoted evidence is verified against parsed text; a model answer that cannot be grounded is downgraded to a local snippet. The system never auto-submits, auto-uploads or redistributes files — delivery remains a human decision after manual de-identification.
-- **Secret handling.** API keys are encrypted with AES-256-GCM under a master key that lives outside the database and outside version control; the UI only shows a masked form.
-- **LLM limitations are surfaced, not hidden.** Every report states whether judgments came from the model or local rules, and unparsable files are listed with a reason (unsupported format, garbled text layer, OCR failure) instead of being silently dropped or hallucinated.
-- **Human oversight.** Recommendations are advisory; review decisions and notes are stored per result, and the admin audit trail records who scanned what, when, and with which provider.
+- **Explicit, minimal authorization.** Only ticked folders are opened; scope is persisted per member and echoed in the collaboration view. Registration is self-service and all demo data is synthetic.
+- **Aggregation by construction.** Products contain group-level statistics only, with k-anonymity (default k = 3) dropping sparse groups. Individual rows are never written to a product, a listing, or a collaboration payload.
+- **Data minimisation towards third parties.** Files whose content already carries an ID card, phone number, bank card or repost markers are filtered **on the host**; only the remaining text (at most 1200 chars per file, 6 files per call) or an explicitly requested image is sent to a model.
+- **Traceability over fluency.** Model evidence must appear verbatim in parsed text; build receipts bind each product to its source file hashes, and the market shows the receipt to buyers.
+- **Secret handling.** Provider keys are AES-256-GCM encrypted with a master key outside the database; collaboration passwords are BCrypt hashed, displayed exactly once, and never returned by any endpoint (asserted by an automated test).
+- **Human oversight.** Agents recommend and assemble; publishing a joint product is reserved for its initiator, and delivery is a human handshake. The system never auto-submits or redistributes content.
+- **LLM limitations are surfaced.** Every product states whether a model participated; unparsable files are listed with a reason rather than silently dropped.
 
 ---
 
 ## 5. Conclusion
 
-AgentCloudDisk demonstrates that a cloud drive can become an auditable data-element marketplace participant without surrendering user content: streaming parsing plus in-flight privacy filtering decides *what may be shown* and *what may leave the host*, and an evidence-grounded LLM judge turns raw files into a graded, reviewable recommendation. The entire loop — bounty, authorization, live scan, preview, review, audit — runs on one laptop, with or without Internet. We invite WWW attendees to bring a folder of their own and watch the agent read it.
+AgentCloudDisk shows that an ordinary cloud drive can participate in a data-element market without surrendering its contents: streaming parsing plus on-host privacy filtering decides what may be shown and what may leave the machine, an LLM Agent turns authorized files into k-anonymous products from a one-sentence request, and a short session code lets several owners pool their statistics into a joint product that grows with each member. The whole loop — describe, build, collaborate, list, match, deliver — runs on one laptop, with or without Internet. We invite WWW attendees to bring a folder and a code.
 
 ---
 
@@ -336,23 +330,27 @@ AgentCloudDisk demonstrates that a cloud drive can become an auditable data-elem
 
 [1] DeepSeek-AI, Aixin Liu, Bei Feng, et al. 2024. *DeepSeek-V3 Technical Report.* arXiv:2412.19437.
 
-[2] DeepSeek-AI, Daya Guo, Dejian Yang, et al. 2025. *DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning.* arXiv:2501.12948.
+[2] Bin Wang, Chao Xu, Xiaomeng Zhao, et al. 2024. *MinerU: An Open-Source Solution for Precise Document Content Extraction.* arXiv:2409.18839.
 
-[3] Bin Wang, Chao Xu, Xiaomeng Zhao, et al. 2024. *MinerU: An Open-Source Solution for Precise Document Content Extraction.* arXiv:2409.18839.
+[3] Haoran Wei, Yaofeng Sun, and Yukun Li. 2025. *DeepSeek-OCR: Contexts Optical Compression.* arXiv:2510.18234.
 
-[4] Haoran Wei, Yaofeng Sun, and Yukun Li. 2025. *DeepSeek-OCR: Contexts Optical Compression.* arXiv:2510.18234.
+[4] Brandon Smock, Rohith Pesala, and Robin Abraham. 2021. *PubTables-1M: Towards Comprehensive Table Extraction from Unstructured Documents.* arXiv:2110.00061.
 
-[5] Brandon Smock, Rohith Pesala, and Robin Abraham. 2021. *PubTables-1M: Towards Comprehensive Table Extraction from Unstructured Documents.* arXiv:2110.00061.
+[5] Ildikó Pilán, Pierre Lison, Lilja Øvrelid, et al. 2022. *The Text Anonymization Benchmark (TAB): A Dedicated Corpus and Evaluation Framework for Text Anonymization.* arXiv:2202.00443.
 
-[6] Ildikó Pilán, Pierre Lison, Lilja Øvrelid, et al. 2022. *The Text Anonymization Benchmark (TAB): A Dedicated Corpus and Evaluation Framework for Text Anonymization.* arXiv:2202.00443.
+[6] Jordi Soria-Comas. 2013. *Improving Data Utility in Differential Privacy and k-Anonymity.* arXiv:1307.0966.
 
 [7] Jian Pei. 2020. *A Survey on Data Pricing: From Economics to Data Science.* arXiv:2009.04462.
 
 [8] Mengxiao Zhang, Fernando Beltran, and Jiamou Liu. 2023. *A Survey of Data Pricing for Data Marketplaces.* arXiv:2303.04810.
 
-[9] Yunfan Gao, Yun Xiong, Xinyu Gao, et al. 2023. *Retrieval-Augmented Generation for Large Language Models: A Survey.* arXiv:2312.10997.
+[9] Khanh-Tung Tran, Dung Dao, Minh-Duong Nguyen, et al. 2025. *Multi-Agent Collaboration Mechanisms: A Survey of LLMs.* arXiv:2501.06322.
 
 [10] Lei Wang, Chen Ma, Xueyang Feng, et al. 2023. *A Survey on Large Language Model based Autonomous Agents.* arXiv:2308.11432.
+
+[11] Yunfan Gao, Yun Xiong, Xinyu Gao, et al. 2023. *Retrieval-Augmented Generation for Large Language Models: A Survey.* arXiv:2312.10997.
+
+[12] Zicun Cong, Xuan Luo, Jian Pei, et al. 2021. *Data Pricing in Machine Learning Pipelines.* arXiv:2108.07915.
 
 ---
 
@@ -360,9 +358,9 @@ AgentCloudDisk demonstrates that a cloud drive can become an auditable data-elem
 
 | Item | Status |
 | --- | --- |
-| Runnable system (backend + frontend, single port) | ✅ |
-| Seeded dataset (13 real files: DOCX/XLSX/PNG/ZIP/PDF) and 5 bounties | ✅ |
-| Offline mode (local OpenAI-compatible mock) | ✅ |
-| One-command reset between visitors | ✅ |
-| Four executable test suites with printed pass/fail | ✅ |
-| Screenshots and this paper (EN/ZH) | ✅ |
+| Runnable system (backend + frontend, single port) | yes |
+| Seeded dataset (13 real files: DOCX/XLSX/PNG/ZIP/PDF) + 2 listings + 1 demand + 1 two-member collaboration | yes |
+| Offline mode (local OpenAI-compatible mock) | yes |
+| One-command reset between visitors | yes |
+| Six executable test suites printing pass/fail | yes |
+| Screenshots and this paper (EN/ZH) | yes |
