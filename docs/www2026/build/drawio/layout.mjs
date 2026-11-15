@@ -1,5 +1,5 @@
 // 六张图的唯一布局定义：drawio 与 SVG 两个导出器都从这里取数据，保证两者一致。
-// 画布统一 720 宽；栅格 10px；字号统一（节点 12 / 边 11 / 注释 10）。
+// 图围绕「Agent 与网盘如何结合」组织，不描述网盘基础功能。
 
 export const CANVAS_W = 760
 
@@ -18,189 +18,221 @@ export const FONT_NODE = 12
 export const FONT_SMALL = 10
 export const FONT_EDGE = 11
 
-// 图 1：系统主闭环
+// 图 1：Agent 与网盘的三条结合面
 export const fig1 = {
-  id: 'fig1-loop', height: 384,
+  id: 'fig1-binding', height: 392,
   groups: [
-    { id: 'g1', label: 'Seller side — one agent per owner', style: 'agent', x: 16, y: 8, w: 688, h: 216 },
+    { id: 'g1', label: 'Owner cloud drive — the substrate the agent stands on', style: 'store', x: 16, y: 8, w: 688, h: 132 },
+    { id: 'g2', label: 'Agent — one per owner', style: 'agent', x: 16, y: 156, w: 688, h: 132 },
+    { id: 'g3', label: 'What leaves the drive', style: 'service', x: 16, y: 304, w: 688, h: 76 },
   ],
   nodes: [
-    { id: 'own', style: 'store', x: 48, y: 56, w: 140, h: 60, lines: [{ t: 'Owner drive' }, { t: 'raw files', size: FONT_SMALL }] },
-    { id: 'ag', style: 'agent', x: 236, y: 56, w: 152, h: 60, lines: [{ t: 'Seller Agent' }, { t: 'parse · aggregate', size: FONT_SMALL }] },
-    { id: 'peer', style: 'agent', x: 444, y: 56, w: 152, h: 60, lines: [{ t: 'Peer Agent' }, { t: 'code + password', size: FONT_SMALL }] },
-    { id: 'prod', style: 'service', x: 236, y: 146, w: 152, h: 58, lines: [{ t: 'Data product' }, { t: 'k-anon aggregates', size: FONT_SMALL }] },
-    { id: 'joint', style: 'service', x: 444, y: 146, w: 152, h: 58, lines: [{ t: 'Joint product' }, { t: 'grows per member', size: FONT_SMALL }] },
-    { id: 'mk', style: 'infra', x: 236, y: 250, w: 152, h: 54, lines: [{ t: 'Data market' }, { t: 'descriptions only', size: FONT_SMALL }] },
-    { id: 'buyer', style: 'client', x: 236, y: 326, w: 152, h: 44, lines: [{ t: 'Buyer' }] },
+    { id: 'own', style: 'store', x: 44, y: 42, w: 148, h: 60, lines: [{ t: 'Owner drive' }, { t: 'raw files', size: FONT_SMALL }] },
+    { id: 'agg', style: 'service', x: 224, y: 42, w: 148, h: 60, lines: [{ t: 'Aggregates' }, { t: 'k-anonymity ≥ 3', size: FONT_SMALL }] },
+    { id: 'rcpt', style: 'infra', x: 404, y: 42, w: 148, h: 60, lines: [{ t: 'Build receipt' }, { t: 'source hashes', size: FONT_SMALL }] },
+    { id: 'obs', style: 'start', x: 584, y: 42, w: 96, h: 60, lines: [{ t: 'Observable' }, { t: 'in form', size: FONT_SMALL }] },
+
+    { id: 'intent', style: 'agent', x: 44, y: 190, w: 148, h: 60, lines: [{ t: 'Intent' }, { t: '「one sentence」', size: FONT_SMALL }] },
+    { id: 'tmpl', style: 'agent', x: 224, y: 190, w: 148, h: 60, lines: [{ t: 'Template' }, { t: 'rule then LLM', size: FONT_SMALL }] },
+    { id: 'scope', style: 'agent', x: 404, y: 190, w: 148, h: 60, lines: [{ t: 'Scope' }, { t: 'ticked folders', size: FONT_SMALL }] },
+    { id: 'evt', style: 'agent', x: 584, y: 190, w: 96, h: 60, lines: [{ t: 'Progress' }, { t: 'per file', size: FONT_SMALL }] },
+
+    { id: 'prod', style: 'service', x: 224, y: 322, w: 148, h: 46, lines: [{ t: 'Data product' }] },
+    { id: 'mkt', style: 'infra', x: 404, y: 322, w: 148, h: 46, lines: [{ t: 'Market' }] },
   ],
   edges: [
-    { from: 'own', to: 'ag' },
-    { from: 'ag', to: 'prod' },
-    { from: 'peer', to: 'joint' },
-    { from: 'ag', to: 'joint' },
-    { from: 'prod', to: 'mk' },
-    { from: 'joint', to: 'mk' },
-    { from: 'mk', to: 'buyer', label: 'demand / matched push' },
+    { from: 'own', to: 'agg', label: 'read' },
+    { from: 'agg', to: 'rcpt', label: 'bind' },
+    { from: 'intent', to: 'tmpl' },
+    { from: 'tmpl', to: 'scope' },
+    { from: 'evt', to: 'scope' },
+    { from: 'tmpl', to: 'agg', label: 'binds to' },
+    { from: 'agg', to: 'prod' },
+    { from: 'prod', to: 'mkt' },
   ],
 }
 
-// 图 2：总体架构
+// 图 2：单次请求的绑定与释放时序
 export const fig2 = {
-  id: 'fig2-arch', height: 436,
+  id: 'fig2-bind', height: 620,
   groups: [
-    { id: 'g1', label: 'Browser — Vue 3', style: 'client', x: 16, y: 8, w: 688, h: 64 },
-    { id: 'g2', label: 'Service — Spring Boot / Kotlin :8080', style: 'service', x: 16, y: 84, w: 688, h: 64 },
-    { id: 'g3', label: 'Agent core', style: 'agent', x: 16, y: 160, w: 688, h: 158 },
-    { id: 'g4', label: 'Infrastructure', style: 'infra', x: 16, y: 330, w: 688, h: 128 },
+    { id: 'drive', label: 'Owner drive', style: 'store', x: 16, y: 8, w: 130, h: 596 },
+    { id: 'agent', label: 'Agent', style: 'agent', x: 164, y: 8, w: 130, h: 596 },
+    { id: 'model', label: 'LLM', style: 'infra', x: 312, y: 8, w: 130, h: 596 },
+    { id: 'market', label: 'Market', style: 'service', x: 460, y: 8, w: 130, h: 596 },
+    { id: 'audit', label: 'Receipt', style: 'start', x: 608, y: 8, w: 136, h: 596 },
   ],
   nodes: [
-    { id: 'ui', style: 'client', x: 36, y: 32, w: 648, h: 30, lines: [{ t: 'drive · seller studio · market · collaboration', size: FONT_SMALL }] },
-    { id: 'api', style: 'service', x: 36, y: 108, w: 648, h: 30, lines: [{ t: '76 REST endpoints · JWT guard · role check', size: FONT_SMALL }] },
-    { id: 'bld', style: 'agent', x: 36, y: 186, w: 152, h: 48, lines: [{ t: 'Product builder' }] },
-    { id: 'par', style: 'agent', x: 202, y: 186, w: 152, h: 48, lines: [{ t: 'Streaming parsers' }] },
-    { id: 'pii', style: 'warn', x: 368, y: 186, w: 140, h: 48, lines: [{ t: 'PII scanner' }] },
-    { id: 'col', style: 'agent', x: 522, y: 186, w: 162, h: 48, lines: [{ t: 'Collaboration' }] },
-    { id: 'mkt', style: 'agent', x: 36, y: 258, w: 152, h: 44, lines: [{ t: 'Market engine' }] },
-    { id: 'llm', style: 'agent', x: 202, y: 258, w: 152, h: 44, lines: [{ t: 'LLM router' }] },
-    { id: 'pg', style: 'store', cyl: true, x: 60, y: 352, w: 160, h: 66, lines: [{ t: 'PostgreSQL 18' }, { t: '19 tables', size: FONT_SMALL }] },
-    { id: 'fs', style: 'store', cyl: true, x: 236, y: 352, w: 150, h: 66, lines: [{ t: 'File store' }, { t: 'sha256', size: FONT_SMALL }] },
-    { id: 'vault', style: 'infra', x: 410, y: 362, w: 132, h: 46, lines: [{ t: 'Key vault' }, { t: 'AES-256-GCM', size: FONT_SMALL }] },
-    { id: 'ext', style: 'start', x: 570, y: 362, w: 114, h: 46, lines: [{ t: 'DeepSeek' }, { t: 'optional', size: FONT_SMALL }] },
+    { id: 'd1', style: 'store', x: 32, y: 44, w: 98, h: 44, lines: [{ t: 'files' }] },
+    { id: 'd2', style: 'store', x: 32, y: 264, w: 98, h: 44, lines: [{ t: 'read chunk' }] },
+    { id: 'd3', style: 'store', x: 32, y: 336, w: 98, h: 44, lines: [{ t: 'PII hit' }] },
+    { id: 'd4', style: 'store', x: 32, y: 500, w: 98, h: 44, lines: [{ t: 'close' }] },
+    { id: 'a1', style: 'agent', x: 180, y: 44, w: 98, h: 44, lines: [{ t: 'bind' }] },
+    { id: 'a2', style: 'agent', x: 180, y: 116, w: 98, h: 44, lines: [{ t: 'scope' }] },
+    { id: 'a3', style: 'agent', x: 180, y: 188, w: 98, h: 44, lines: [{ t: 'parse' }] },
+    { id: 'a4', style: 'agent', x: 180, y: 336, w: 98, h: 44, lines: [{ t: 'exclude' }] },
+    { id: 'a5', style: 'agent', x: 180, y: 408, w: 98, h: 44, lines: [{ t: 'aggregate' }] },
+    { id: 'a6', style: 'agent', x: 180, y: 500, w: 98, h: 44, lines: [{ t: 'unbind' }] },
+    { id: 'm1', style: 'infra', x: 328, y: 116, w: 98, h: 44, lines: [{ t: 'template' }] },
+    { id: 'm2', style: 'infra', x: 328, y: 188, w: 98, h: 44, lines: [{ t: 'describe' }] },
+    { id: 'k1', style: 'service', x: 476, y: 408, w: 98, h: 44, lines: [{ t: 'listing' }] },
+    { id: 'k2', style: 'service', x: 476, y: 480, w: 98, h: 44, lines: [{ t: 'match' }] },
+    { id: 'r1', style: 'start', x: 624, y: 408, w: 104, h: 44, lines: [{ t: 'receipt' }] },
+    { id: 'r2', style: 'start', x: 624, y: 500, w: 104, h: 44, lines: [{ t: 'released' }] },
   ],
   edges: [
-    { from: 'ui', to: 'api' },
-    { from: 'api', to: 'bld', side: 'left' },
-    { from: 'api', to: 'col', side: 'right' },
-    { from: 'bld', to: 'par' },
-    { from: 'par', to: 'pii' },
-    { from: 'bld', to: 'llm' },
-    { from: 'mkt', to: 'pg' },
-    { from: 'llm', to: 'fs' },
-    { from: 'col', to: 'vault', side: 'right' },
-    { from: 'col', to: 'ext', dashed: true, side: 'right' },
+    { from: 'd1', to: 'a1' },
+    { from: 'a1', to: 'a2' },
+    { from: 'a2', to: 'm1', label: 'ask' },
+    { from: 'm1', to: 'a3' },
+    { from: 'a3', to: 'd2' },
+    { from: 'd2', to: 'a4' },
+    { from: 'a4', to: 'd3', label: 'logged' },
+    { from: 'a4', to: 'a5' },
+    { from: 'a5', to: 'm2' },
+    { from: 'a5', to: 'k1', label: 'aggregates' },
+    { from: 'k1', to: 'k2' },
+    { from: 'a5', to: 'a6' },
+    { from: 'a6', to: 'd4', label: 'unbind' },
+    { from: 'd4', to: 'r2', label: 'released', dashed: true },
   ],
 }
 
-// 图 3：数据模型
+// 图 3：协同的绑定面（只交换分组统计）
 export const fig3 = {
-  id: 'fig3-er', height: 320,
-  groups: [],
-  nodes: [
-    { id: 'user', style: 'start', x: 20, y: 16, w: 176, h: 64, lines: [{ t: 'user', bold: true }, { t: 'id · username · role', size: FONT_SMALL }] },
-    { id: 'user_file', style: 'service', x: 20, y: 132, w: 176, h: 64, lines: [{ t: 'user_file', bold: true }, { t: 'id · user_id · meta_id', size: FONT_SMALL }] },
-    { id: 'file_meta', style: 'store', x: 20, y: 248, w: 176, h: 64, lines: [{ t: 'file_meta', bold: true }, { t: 'id · sha256 · size', size: FONT_SMALL }] },
-    { id: 'data_product', style: 'agent', x: 236, y: 16, w: 196, h: 64, lines: [{ t: 'data_product', bold: true }, { t: 'id · owner_id · template', size: FONT_SMALL }] },
-    { id: 'product_listing', style: 'agent', x: 236, y: 132, w: 196, h: 64, lines: [{ t: 'product_listing', bold: true }, { t: 'id · product_id · price', size: FONT_SMALL }] },
-    { id: 'market_demand', style: 'client', x: 236, y: 248, w: 196, h: 64, lines: [{ t: 'market_demand', bold: true }, { t: 'id · buyer_id · requirement', size: FONT_SMALL }] },
-    { id: 'market_match', style: 'client', x: 472, y: 190, w: 196, h: 64, lines: [{ t: 'market_match', bold: true }, { t: 'id · demand_id · listing_id', size: FONT_SMALL }] },
-    { id: 'collab_session', style: 'infra', x: 472, y: 16, w: 196, h: 64, lines: [{ t: 'collab_session', bold: true }, { t: 'id · code · owner_id', size: FONT_SMALL }] },
-    { id: 'collab_member', style: 'infra', x: 472, y: 104, w: 196, h: 64, lines: [{ t: 'collab_member', bold: true }, { t: 'id · session_id · user_id', size: FONT_SMALL }] },
-  ],
-  edges: [
-    { from: 'user', to: 'user_file', label: '1:n' },
-    { from: 'file_meta', to: 'user_file', label: '1:n' },
-    { from: 'user', to: 'data_product', label: '1:n' },
-    { from: 'data_product', to: 'product_listing', label: '1:n' },
-    { from: 'user', to: 'market_demand', label: '1:n', way: 'gutter' },
-    { from: 'product_listing', to: 'market_match', label: '1:n' },
-    { from: 'market_demand', to: 'market_match', label: '1:n' },
-    { from: 'collab_session', to: 'collab_member', label: '1:n' },
-  ],
-}
-
-// 图 4：加工流水线
-export const fig4 = {
-  id: 'fig4-pipeline', height: 652,
-  groups: [],
-  nodes: [
-    { id: 's0', style: 'start', x: 250, y: 8, w: 220, h: 44, lines: [{ t: 'One-sentence request' }] },
-    { id: 's1', style: 'agent', x: 236, y: 82, w: 248, h: 54, lines: [{ t: 'Agent selects template' }, { t: 'rule match, then LLM check', size: FONT_SMALL }] },
-    { id: 's2', style: 'client', x: 236, y: 166, w: 248, h: 54, lines: [{ t: 'Owner ticks folders' }, { t: 'only these are opened', size: FONT_SMALL }] },
-    { id: 's3', style: 'agent', x: 236, y: 250, w: 248, h: 54, lines: [{ t: 'Streaming parse' }, { t: 'xlsx · docx · pdf · OCR · zip', size: FONT_SMALL }] },
-    { id: 's4', style: 'decide', dec: true, x: 262, y: 330, w: 196, h: 84, lines: [{ t: 'Pre-flight check' }] },
-    { id: 'x', style: 'warn', x: 536, y: 344, w: 148, h: 56, lines: [{ t: 'Excluded' }, { t: 'reason in receipt', size: FONT_SMALL }] },
-    { id: 's5', style: 'agent', x: 236, y: 438, w: 248, h: 48, lines: [{ t: 'Extract rows by template' }] },
-    { id: 's6', style: 'service', x: 228, y: 510, w: 264, h: 54, lines: [{ t: 'Aggregate by dimension' }, { t: 'k-anonymity drops small groups', size: FONT_SMALL }] },
-    { id: 's7', style: 'infra', x: 228, y: 588, w: 264, h: 54, lines: [{ t: 'Build receipt' }, { t: 'source sha256 + params + model', size: FONT_SMALL }] },
-  ],
-  edges: [
-    { from: 's0', to: 's1' },
-    { from: 's1', to: 's2' },
-    { from: 's2', to: 's3' },
-    { from: 's3', to: 's4' },
-    { from: 's4', to: 'x', label: 'sensitive' },
-    { from: 's4', to: 's5', label: 'clean' },
-    { from: 's5', to: 's6' },
-    { from: 's6', to: 's7' },
-    { from: 'x', to: 's7', dashed: true },
-  ],
-}
-
-// 图 5：协同（泳道活动图）
-export const fig5 = {
-  id: 'fig5-collab', height: 452,
+  id: 'fig3-collab', height: 420,
   groups: [
-    { id: 'l1', label: 'Initiator (Agent A)', style: 'agent', x: 16, y: 8, w: 224, h: 440 },
-    { id: 'l2', label: 'Collaboration hub', style: 'service', x: 248, y: 8, w: 224, h: 440 },
-    { id: 'l3', label: 'Member (Agent B)', style: 'client', x: 480, y: 8, w: 224, h: 440 },
+    { id: 'ia', label: 'Owner A drive', style: 'store', x: 16, y: 8, w: 200, h: 300 },
+    { id: 'ib', label: 'Owner B drive', style: 'store', x: 544, y: 8, w: 200, h: 300 },
+    { id: 'hub', label: 'Collaboration hub — sees statistics only', style: 'agent', x: 236, y: 8, w: 288, h: 300 },
   ],
   nodes: [
-    // t1：发起方描述需求，中心建会话
-    { id: 'a1', style: 'agent',   x: 44,  y: 44,  w: 168, h: 44, lines: [{ t: 'describe joint product' }] },
-    { id: 'h1', style: 'service', x: 276, y: 44,  w: 168, h: 44, lines: [{ t: 'create session' }] },
-    // t2：中心发号，成员收号
-    { id: 'h2', style: 'service', x: 276, y: 112, w: 168, h: 44, lines: [{ t: 'issue code + password' }] },
-    { id: 'b1', style: 'client',  x: 508, y: 112, w: 168, h: 44, lines: [{ t: 'receive code' }] },
-    // t3：成员预览邀请
-    { id: 'b2', style: 'client',  x: 508, y: 180, w: 168, h: 44, lines: [{ t: 'preview invite' }] },
-    // t4：成员勾选文件夹加入 → 中心校验
-    { id: 'b3', style: 'client',  x: 508, y: 248, w: 168, h: 44, lines: [{ t: 'join + tick folder' }] },
-    { id: 'h3', style: 'service', x: 276, y: 248, w: 168, h: 44, lines: [{ t: 'verify code' }] },
-    // t5：双方各自本地聚合，统计上报中心
-    { id: 'a2', style: 'agent',   x: 44,  y: 316, w: 168, h: 44, lines: [{ t: 'local aggregation' }] },
-    { id: 'b4', style: 'client',  x: 508, y: 316, w: 168, h: 44, lines: [{ t: 'local aggregation' }] },
-    { id: 'h4', style: 'service', x: 276, y: 316, w: 168, h: 44, lines: [{ t: 'union of group stats' }] },
-    // t6：产品增大 → 发起方上架
-    { id: 'h5', style: 'service', x: 276, y: 384, w: 168, h: 44, lines: [{ t: 'product grows' }] },
-    { id: 'a3', style: 'agent',   x: 44,  y: 384, w: 168, h: 44, lines: [{ t: 'publish' }] },
+    { id: 'fa', style: 'store', x: 40, y: 52, w: 152, h: 52, lines: [{ t: 'raw files' }] },
+    { id: 'ga', style: 'service', x: 40, y: 138, w: 152, h: 52, lines: [{ t: 'local aggregation' }] },
+    { id: 'sa', style: 'agent', x: 40, y: 224, w: 152, h: 52, lines: [{ t: 'group stats' }, { t: 'no rows', size: FONT_SMALL }] },
+
+    { id: 'fb', style: 'store', x: 568, y: 52, w: 152, h: 52, lines: [{ t: 'raw files' }] },
+    { id: 'gb', style: 'service', x: 568, y: 138, w: 152, h: 52, lines: [{ t: 'local aggregation' }] },
+    { id: 'sb', style: 'agent', x: 568, y: 224, w: 152, h: 52, lines: [{ t: 'group stats' }, { t: 'no rows', size: FONT_SMALL }] },
+
+    { id: 'code', style: 'agent', x: 272, y: 52, w: 216, h: 52, lines: [{ t: 'session code + password' }] },
+    { id: 'uq', style: 'service', x: 272, y: 138, w: 216, h: 52, lines: [{ t: 'union of group stats' }] },
+    { id: 'gr', style: 'agent', x: 272, y: 224, w: 216, h: 52, lines: [{ t: 'product grows' }, { t: 'sources per group', size: FONT_SMALL }] },
+
+    { id: 'pub', style: 'infra', x: 272, y: 344, w: 216, h: 56, lines: [{ t: 'Initiator publishes' }, { t: 'only the initiator', size: FONT_SMALL }] },
   ],
   edges: [
-    { from: 'a1', to: 'h1' },
-    { from: 'h1', to: 'h2' },
-    { from: 'h2', to: 'b1', label: 'code (once)', dashed: true },
-    { from: 'b1', to: 'b2' },
-    { from: 'b2', to: 'b3' },
-    { from: 'b3', to: 'h3' },
-    { from: 'a2', to: 'h4' },
-    { from: 'b4', to: 'h4', dashed: true },
-    { from: 'h3', to: 'a2', dashed: true, way: 'hub-left' },
-    { from: 'h4', to: 'h5' },
-    { from: 'h5', to: 'a3' },
+    { from: 'fa', to: 'ga' },
+    { from: 'ga', to: 'sa' },
+    { from: 'sa', to: 'uq' },
+    { from: 'fb', to: 'gb' },
+    { from: 'gb', to: 'sb' },
+    { from: 'sb', to: 'uq' },
+    { from: 'code', to: 'ga', dashed: true, label: 'admit' },
+    { from: 'code', to: 'gb', dashed: true },
+    { from: 'uq', to: 'gr' },
+    { from: 'gr', to: 'pub' },
   ],
 }
 
-// 图 6：协同状态机
-export const fig6 = {
-  id: 'fig6-state', height: 274,
-  groups: [],
+// 图 4：绑定边界（哪些数据在网盘内、哪些可以出）
+export const fig4 = {
+  id: 'fig4-boundary', height: 420,
+  groups: [
+    { id: 'in', label: 'Inside the owner drive — never transmitted', style: 'store', x: 16, y: 8, w: 352, h: 396 },
+    { id: 'out', label: 'Leaves the drive', style: 'agent', x: 392, y: 8, w: 352, h: 396 },
+  ],
   nodes: [
-    { id: 'st0', style: 'agent',   x: 16,  y: 40,  w: 176, h: 62, lines: [{ t: 'Created' }, { t: 'code + password', size: FONT_SMALL }] },
-    { id: 'st1', style: 'service', x: 292, y: 40,  w: 176, h: 62, lines: [{ t: 'Open' }, { t: 'members may join', size: FONT_SMALL }] },
-    { id: 'st2', style: 'infra',   x: 568, y: 40,  w: 176, h: 62, lines: [{ t: 'Published' }, { t: 'listed in market', size: FONT_SMALL }] },
-    { id: 'st3', style: 'start',   x: 292, y: 200, w: 176, h: 62, lines: [{ t: 'Closed' }, { t: 'no longer accepting', size: FONT_SMALL }] },
+    { id: 'f1', style: 'store', x: 32, y: 48, w: 320, h: 48, lines: [{ t: 'raw files, images, archives' }] },
+    { id: 'f2', style: 'store', x: 32, y: 112, w: 320, h: 48, lines: [{ t: 'full documents' }] },
+    { id: 'f3', style: 'store', x: 32, y: 176, w: 320, h: 48, lines: [{ t: 'plaintext secrets' }] },
+    { id: 'f4', style: 'store', x: 32, y: 240, w: 320, h: 48, lines: [{ t: 'every individual row' }] },
+    { id: 'f5', style: 'store', x: 32, y: 304, w: 320, h: 48, lines: [{ t: 'PII-bearing files' }] },
+    { id: 'o1', style: 'agent', x: 408, y: 48, w: 320, h: 48, lines: [{ t: 'sentence to template choice' }] },
+    { id: 'o2', style: 'agent', x: 408, y: 112, w: 320, h: 48, lines: [{ t: 'bounded extract, 1200 chars, 6 files' }] },
+    { id: 'o3', style: 'agent', x: 408, y: 176, w: 320, h: 48, lines: [{ t: 'explicitly requested images' }] },
+    { id: 'o4', style: 'service', x: 408, y: 240, w: 320, h: 48, lines: [{ t: 'group aggregates, k at least 3' }] },
+    { id: 'o5', style: 'infra', x: 408, y: 304, w: 320, h: 48, lines: [{ t: 'build receipt with source hashes' }] },
   ],
   edges: [
-    { from: 'st0', to: 'st1', label: 'describe' },
-    { from: 'st1', to: 'st2', label: 'publish' },
-    { from: 'st1', to: 'st3', label: 'close' },
+    { from: 'f1', to: 'o2', label: 'extract' },
+    { from: 'f2', to: 'o2', dashed: true },
+    { from: 'f4', to: 'o4', label: 'aggregate' },
+    { from: 'f5', to: 'o5', dashed: true, label: 'reason' },
+  ],
+}
+
+// 图 5：Agent 的授权访问控制流
+export const fig5 = {
+  id: 'fig5-guard', height: 600,
+  groups: [],
+  nodes: [
+    { id: 'q', style: 'start', x: 270, y: 8, w: 220, h: 44, lines: [{ t: 'Agent requests a file' }] },
+    { id: 'c1', style: 'decide', dec: true, x: 282, y: 78, w: 196, h: 82, lines: [{ t: 'In ticked scope?' }] },
+    { id: 'deny1', style: 'warn', x: 546, y: 92, w: 168, h: 54, lines: [{ t: 'Deny' }, { t: 'not in scope', size: FONT_SMALL }] },
+    { id: 'c2', style: 'decide', dec: true, x: 282, y: 190, w: 196, h: 82, lines: [{ t: 'Owner of record?' }] },
+    { id: 'deny2', style: 'warn', x: 546, y: 204, w: 168, h: 54, lines: [{ t: 'Deny' }, { t: 'other owner', size: FONT_SMALL }] },
+    { id: 'c3', style: 'decide', dec: true, x: 282, y: 302, w: 196, h: 82, lines: [{ t: 'PII scan clean?' }] },
+    { id: 'excl', style: 'warn', x: 546, y: 316, w: 168, h: 54, lines: [{ t: 'Exclude' }, { t: 'receipt reason', size: FONT_SMALL }] },
+    { id: 'c4', style: 'decide', dec: true, x: 282, y: 414, w: 196, h: 76, lines: [{ t: 'Within model quota?' }] },
+    { id: 'trim', style: 'infra', x: 546, y: 424, w: 168, h: 54, lines: [{ t: 'Trim' }, { t: '1200 chars', size: FONT_SMALL }] },
+    { id: 'ok', style: 'service', x: 282, y: 520, w: 196, h: 52, lines: [{ t: 'Release to agent' }, { t: 'and log in receipt', size: FONT_SMALL }] },
+  ],
+  edges: [
+    { from: 'q', to: 'c1' },
+    { from: 'c1', to: 'deny1', label: 'no' },
+    { from: 'c1', to: 'c2', label: 'yes' },
+    { from: 'c2', to: 'deny2', label: 'no' },
+    { from: 'c2', to: 'c3', label: 'yes' },
+    { from: 'c3', to: 'excl', label: 'hit' },
+    { from: 'c3', to: 'c4', label: 'clean' },
+    { from: 'c4', to: 'trim', label: 'over' },
+    { from: 'c4', to: 'ok', label: 'ok' },
+    { from: 'trim', to: 'ok', dashed: true },
+  ],
+}
+
+// 图 6：网盘之上的 Agent 能力投影
+export const fig6 = {
+  id: 'fig6-projection', height: 372,
+  groups: [
+    { id: 'base', label: 'Drive primitives', style: 'store', x: 16, y: 8, w: 232, h: 348 },
+    { id: 'must', label: 'What an agent needs', style: 'agent', x: 264, y: 8, w: 232, h: 348 },
+    { id: 'bind', label: 'Binding in this system', style: 'service', x: 512, y: 8, w: 232, h: 348 },
+  ],
+  nodes: [
+    { id: 'b1', style: 'store', x: 40, y: 52, w: 184, h: 48, lines: [{ t: 'file tree' }] },
+    { id: 'b2', style: 'store', x: 40, y: 122, w: 184, h: 48, lines: [{ t: 'content bytes' }] },
+    { id: 'b3', style: 'store', x: 40, y: 192, w: 184, h: 48, lines: [{ t: 'owner identity' }] },
+    { id: 'b4', style: 'store', x: 40, y: 262, w: 184, h: 48, lines: [{ t: 'share links' }] },
+
+    { id: 'm1', style: 'agent', x: 288, y: 52, w: 184, h: 48, lines: [{ t: 'scoped read' }] },
+    { id: 'm2', style: 'agent', x: 288, y: 122, w: 184, h: 48, lines: [{ t: 'stream + resume' }] },
+    { id: 'm3', style: 'agent', x: 288, y: 192, w: 184, h: 48, lines: [{ t: 'attribution' }] },
+    { id: 'm4', style: 'agent', x: 288, y: 262, w: 184, h: 48, lines: [{ t: 'audience control' }] },
+
+    { id: 'n1', style: 'service', x: 536, y: 52, w: 184, h: 48, lines: [{ t: 'ticked folders only' }] },
+    { id: 'n2', style: 'service', x: 536, y: 122, w: 184, h: 48, lines: [{ t: 'chunked readers' }] },
+    { id: 'n3', style: 'service', x: 536, y: 192, w: 184, h: 48, lines: [{ t: 'per-owner agent' }] },
+    { id: 'n4', style: 'service', x: 536, y: 262, w: 184, h: 48, lines: [{ t: 'market + code' }] },
+  ],
+  edges: [
+    { from: 'b1', to: 'm1' },
+    { from: 'b2', to: 'm2' },
+    { from: 'b3', to: 'm3' },
+    { from: 'b4', to: 'm4' },
+    { from: 'm1', to: 'n1' },
+    { from: 'm2', to: 'n2' },
+    { from: 'm3', to: 'n3' },
+    { from: 'm4', to: 'n4' },
   ],
 }
 
 export const FIGURES = [
-  { key: 'fig1-loop', data: fig1, page: 'Fig1-SystemLoop' },
-  { key: 'fig2-arch', data: fig2, page: 'Fig2-Architecture' },
-  { key: 'fig3-er', data: fig3, page: 'Fig3-DataModel' },
-  { key: 'fig4-pipeline', data: fig4, page: 'Fig4-Pipeline' },
-  { key: 'fig5-collab', data: fig5, page: 'Fig5-Collaboration' },
-  { key: 'fig6-state', data: fig6, page: 'Fig6-StateMachine' },
+  { key: 'fig1-binding', data: fig1, page: 'Fig1-BindingSurfaces' },
+  { key: 'fig2-bind', data: fig2, page: 'Fig2-AccessLifecycle' },
+  { key: 'fig3-collab', data: fig3, page: 'Fig3-Collaboration' },
+  { key: 'fig4-boundary', data: fig4, page: 'Fig4-Boundary' },
+  { key: 'fig5-guard', data: fig5, page: 'Fig5-AccessControl' },
+  { key: 'fig6-projection', data: fig6, page: 'Fig6-Projection' },
 ]

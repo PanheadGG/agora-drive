@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4A5568"/>
+    </marker>
+  </defs>
+  <rect x="16" y="8" width="352" height="396" rx="10" ry="10" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.2"/>
+  <text x="28" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Inside the owner drive — never transmitted</text>
+  <rect x="392" y="8" width="352" height="396" rx="10" ry="10" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.2"/>
+  <text x="404" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Leaves the drive</text>
+  <path d="M192.0 96.0 L192.0 104.0 L568.0 104.0 L568.0 112.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <rect x="356.4" y="95.0" width="47.2" height="16" fill="#FFFFFF" opacity="0.94"/>
+  <text x="380.0" y="104.0" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#2D3748">extract</text>
+  <path d="M352.0 136.0 L408.0 136.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <path d="M352.0 264.0 L408.0 264.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <rect x="350.8" y="255.0" width="58.4" height="16" fill="#FFFFFF" opacity="0.94"/>
+  <text x="380.0" y="264.0" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#2D3748">aggregate</text>
+  <path d="M352.0 328.0 L408.0 328.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <rect x="359.2" y="319.0" width="41.6" height="16" fill="#FFFFFF" opacity="0.94"/>
+  <text x="380.0" y="328.0" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#2D3748">reason</text>
+  <rect x="32" y="48" width="320" height="48" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="192" y="72.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">raw files, images, archives</text>
+  <rect x="32" y="112" width="320" height="48" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="192" y="136.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">full documents</text>
+  <rect x="32" y="176" width="320" height="48" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="192" y="200.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">plaintext secrets</text>
+  <rect x="32" y="240" width="320" height="48" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="192" y="264.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">every individual row</text>
+  <rect x="32" y="304" width="320" height="48" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="192" y="328.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">PII-bearing files</text>
+  <rect x="408" y="48" width="320" height="48" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="568" y="72.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">sentence to template choice</text>
+  <rect x="408" y="112" width="320" height="48" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="568" y="136.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">bounded extract, 1200 chars, 6 files</text>
+  <rect x="408" y="176" width="320" height="48" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="568" y="200.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">explicitly requested images</text>
+  <rect x="408" y="240" width="320" height="48" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="568" y="264.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">group aggregates, k at least 3</text>
+  <rect x="408" y="304" width="320" height="48" rx="8" ry="8" fill="#F2EDF9" stroke="#7E57C2" stroke-width="1.5"/>
+  <text x="568" y="328.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">build receipt with source hashes</text>
+</svg>

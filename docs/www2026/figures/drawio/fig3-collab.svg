@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4A5568"/>
+    </marker>
+  </defs>
+  <rect x="16" y="8" width="200" height="300" rx="10" ry="10" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.2"/>
+  <text x="28" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Owner A drive</text>
+  <rect x="544" y="8" width="200" height="300" rx="10" ry="10" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.2"/>
+  <text x="556" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Owner B drive</text>
+  <rect x="236" y="8" width="288" height="300" rx="10" ry="10" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.2"/>
+  <text x="248" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Collaboration hub — sees statistics only</text>
+  <path d="M116.0 104.0 L116.0 138.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M116.0 190.0 L116.0 224.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M116.0 224.0 L116.0 207.0 L380.0 207.0 L380.0 190.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M644.0 104.0 L644.0 138.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M644.0 190.0 L644.0 224.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M644.0 224.0 L644.0 207.0 L380.0 207.0 L380.0 190.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M380.0 104.0 L380.0 121.0 L116.0 121.0 L116.0 138.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <rect x="230.0" y="112.0" width="36.0" height="16" fill="#FFFFFF" opacity="0.94"/>
+  <text x="248.0" y="121.0" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#2D3748">admit</text>
+  <path d="M380.0 104.0 L380.0 121.0 L644.0 121.0 L644.0 138.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <path d="M380.0 190.0 L380.0 224.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M380.0 276.0 L380.0 344.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <rect x="40" y="52" width="152" height="52" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="116" y="78.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">raw files</text>
+  <rect x="40" y="138" width="152" height="52" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="116" y="164.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">local aggregation</text>
+  <rect x="40" y="224" width="152" height="52" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="116" y="243.6" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">group stats</text>
+  <text x="116" y="257.7" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#1A202C">no rows</text>
+  <rect x="568" y="52" width="152" height="52" rx="8" ry="8" fill="#EDF7F7" stroke="#0E8A8A" stroke-width="1.5"/>
+  <text x="644" y="78.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">raw files</text>
+  <rect x="568" y="138" width="152" height="52" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="644" y="164.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">local aggregation</text>
+  <rect x="568" y="224" width="152" height="52" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="644" y="243.6" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">group stats</text>
+  <text x="644" y="257.7" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#1A202C">no rows</text>
+  <rect x="272" y="52" width="216" height="52" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="380" y="78.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">session code + password</text>
+  <rect x="272" y="138" width="216" height="52" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="380" y="164.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">union of group stats</text>
+  <rect x="272" y="224" width="216" height="52" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="380" y="243.6" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">product grows</text>
+  <text x="380" y="257.7" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#1A202C">sources per group</text>
+  <rect x="272" y="344" width="216" height="56" rx="8" ry="8" fill="#F2EDF9" stroke="#7E57C2" stroke-width="1.5"/>
+  <text x="380" y="365.6" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">Initiator publishes</text>
+  <text x="380" y="379.7" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#1A202C">only the initiator</text>
+</svg>

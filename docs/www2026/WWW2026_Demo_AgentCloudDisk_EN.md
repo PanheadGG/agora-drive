@@ -1,4 +1,4 @@
-# AgentCloudDisk: Turning Cloud-Drive Files into Tradeable Data Products with Collaborative LLM Agents
+# AgentCloudDisk: Binding an LLM Agent to a Personal Cloud Drive for Data-Product Construction
 
 **Demo Paper — WWW '26 Companion (Demo Track)**
 
@@ -14,160 +14,147 @@
 
 ## Keywords
 
-Data elements; cloud drive; LLM agent; multi-agent collaboration; privacy-preserving data publishing; data marketplaces
+Cloud drive; LLM agent; agent-drive binding; scoped data access; multi-agent collaboration; data products
 
 ## ACM Reference Format
 
-Anonymous Author(s). 2026. AgentCloudDisk: Turning Cloud-Drive Files into Tradeable Data Products with Collaborative LLM Agents. In *Companion Proceedings of the ACM Web Conference 2026 (WWW Companion '26)*, April 13–17, 2026, Dubai, United Arab Emirates. ACM, New York, NY, USA, 4 pages.
+Anonymous Author(s). 2026. AgentCloudDisk: Binding an LLM Agent to a Personal Cloud Drive for Data-Product Construction. In *Companion Proceedings of the ACM Web Conference 2026 (WWW Companion '26)*, April 13–17, 2026, Dubai, United Arab Emirates. ACM, New York, NY, USA, 4 pages.
 
 ## Abstract
 
-Valuable data sits dormant inside personal and enterprise cloud drives — commute logs, recipe notes, feeding tables, reading records — yet conventional drives offer only metadata search, so owners cannot turn this material into anything sellable. We present **AgentCloudDisk**, a runnable cloud-drive system in which an LLM Agent acts on behalf of each owner: given a one-sentence product request it selects an aggregation template, parses the owner's authorized files with streaming readers, aggregates into a k-anonymous product, and publishes it to a data market where buyers post demands and receive matched listings. Two mechanisms carry the demo: **multi-agent collaboration**, where owners join a joint product with a short session code and password and the product grows as members contribute; and **host-confined privacy**, where sensitive files are filtered before any model call and only aggregate statistics ever leave a member's drive. A visitor can describe a product from their own folder and watch a joint product grow by redeeming a code, end-to-end, on one laptop.
+A cloud drive stores a person's data but understands none of it: it can return a file by name, never a fact by meaning. An LLM agent can understand the content, yet an agent placed next to a drive has no principled way to reach the right files, prove what it read, or keep the rest private. We argue that the interesting problem is not building a drive nor building an agent, but **binding the two**: giving an agent a scoped, attributable, revocable view of an owner's drive. We present **AgentCloudDisk**, a runnable system that implements this binding in three surfaces — *authority* (an agent may open only folders the owner ticked, and only as that owner), *exposure* (file bytes are read and reduced on the drive's host, so what crosses to a model is a bounded extract and what crosses to a buyer is a k-anonymous aggregate), and *provenance* (every product carries a receipt binding it to the source hashes it read and the files it refused). The binding also composes across owners: a short session code admits collaborators who exchange group statistics rather than files, so a joint product grows with each member. Visitors can describe a product in one sentence from their own folder, watch the agent's scoped reads, and join a joint product with a code, in under three minutes.
 
 ## 1 Introduction
 
-Data elements have become a production factor, and marketplaces increasingly let demanders post *demands* while suppliers list *products*. In practice the suppliers are not curated warehouses: the raw material lies in ordinary **cloud drives** as heterogeneous files — commute spreadsheets, hand-written recipe photos, feeding logs, PDF reports.
+A personal cloud drive is a passive store. It knows paths, sizes and timestamps, and it will hand back a file if asked by name; it does not know that one spreadsheet column is a commute duration, that a folder of photographs is a set of receipts, or that twelve files together describe a habit worth selling. An LLM agent knows precisely these things. The natural move is to put an agent next to the drive — and that is where the difficulty starts.
 
-Three gaps motivate this demo:
+An agent with unrestricted access to a drive is a liability: it would read everything, remember everything, and send excerpts to a model provider. An agent with no access is useless. The design space between them is where this demo lives, and we summarise it as three questions that a drive-agent system must answer explicitly:
 
-1. **Drives stop at metadata.** A request such as "aggregate my commute time by line" cannot be answered by a filename search, and a drive offers no way to become a *product*.
-2. **Turning files into a product requires understanding content, but not uploading it.** Content-based aggregation implies reading files; shipping raw documents to a third party is unacceptable for personal data.
-3. **Individual drives are too small to be valuable, yet naive collaboration leaks.** One person's commute log is thin; combining several owners' logs gives a statistically meaningful product, but naive combination exchanges raw records and enables cross-referencing attacks.
+- **Authority.** Which files may this agent open, on whose behalf, for how long, and for which purpose?
+- **Exposure.** What physically leaves the drive's boundary — file bytes, extracted spans, aggregates, or only descriptions?
+- **Provenance.** Can anyone later verify what the agent actually read and what it discarded?
 
-Our demo answers these with a **working system**, not a mock-up. Contributions:
+We argue that existing systems answer these questions implicitly rather than explicitly. File assistants inherit the drive's own permission model, which was designed for *sharing with people*, not for *delegating to a process that calls a third-party model*. Data-marketplace systems sidestep the problem by assuming a curated warehouse. Federated learning answers exposure but produces models, not inspectable products. Meanwhile a large share of the world's personal data never becomes useful at all.
 
-- **C1 — Agents that produce products, not search results.** Each owner's Agent converts authorized raw files into an aggregated *data product* with schema, coverage, quality score, masked samples and a reproducible build receipt.
-- **C2 — Natural-language product authoring.** Users describe what they want in one sentence; the Agent selects a template, states its confidence and reasoning, and shows the fields it will produce.
-- **C3 — Code-based multi-agent collaboration.** An initiator creates a joint project and receives a short **session code** plus **password**; other owners redeem them to join, contributing only group-level statistics, and the joint product grows with each member.
-- **C4 — Host-confined, verifiable privacy.** Sensitive content is filtered on the host before any network call; the market exposes only aggregate descriptions; a per-product receipt binds the product to its source file hashes.
+**Contributions.** Rather than a drive with agent features bolted on, AgentCloudDisk is an explicit binding layer between one agent and one drive:
 
-**On-site goal:** a visitor should be able to describe one product in plain language, watch the Agent parse and aggregate, then join a joint project with a code and see the product grow — in under three minutes.
+- **C1 — A scoped read authority.** The agent's access is defined by a persisted per-owner scope (the folders the owner ticked) and re-checked per file; anything outside is denied, not degraded.
+- **C2 — Host-side reduction as the exposure boundary.** Parsing, de-identification and aggregation all run on the drive's host; the model sees a character-bounded extract, and the market sees a k-anonymous aggregate. Neither ever sees the file.
+- **C3 — Provenance as a first-class artefact.** Each product ships a build receipt binding it to source file hashes, aggregation parameters and exclusions with reasons, so a listing is auditable by a buyer who never touches the drive.
+- **C4 — The same binding across owners.** A short session code admits collaborators who each run their own scoped binding and exchange group statistics only, so the joint product grows without any file moving between drives.
 
-## 2 Design and Implementation of System
+**On-site goal.** A visitor describes one product in one sentence from their own folder, watches the agent's scoped reads stream by, and joins a joint product with a code — in under three minutes.
 
-## 2.1 Architecture Overview
+## 2 The Agent–Drive Binding
 
-![System loop](figures/drawio/fig1-loop.svg)
+## 2.1 Three binding surfaces
 
-*Figure 1. The seller-side loop. Owners' Agents produce products; the market only ever sees descriptions, never file content.*
+Figure 1 shows the binding we implemented. The drive is the substrate; the agent stands on it; three surfaces connect them.
 
-AgentCloudDisk is a three-layer system (Figure 2). The **browser layer** is a Vue 3 single-page application with four surfaces: the drive, the seller studio, the market and the collaboration panel. The **service layer** is one Spring Boot / Kotlin process exposing 76 REST endpoints behind JWT authentication. The **agent core** implements the two capabilities this demo is about — product construction and collaboration — and delegates storage, model access and key management to infrastructure modules.
+![Three binding surfaces](figures/drawio/fig1-binding.svg)
 
-![Architecture](figures/drawio/fig2-arch.svg)
+*Figure 1. The binding between one agent and one drive has three surfaces — authority (scope), exposure (host-side reduction), and provenance (receipt) — and only the last two produce anything observable outside the drive.*
 
-*Figure 2. Component view. Everything except the optional model call runs inside one JVM.*
+The **authority** surface is what the owner sees: a sentence describing the product, which the agent turns into a template choice, and a folder tree in which the owner ticks what may be read. The agent does not get a path prefix; it gets a persisted scope record per owner, and every file open is checked against that record. The **exposure** surface is where the drive's own machinery does the work: parsing, sensitive-information scanning and aggregation all run inside the drive's host, so what reaches a model is a bounded extract and what reaches a buyer is an aggregate. The **provenance** surface is the receipt, written as the agent works and published alongside the product.
 
-Persistence is PostgreSQL 18 with 19 tables managed by nine Flyway migrations; file content lives in a content-addressed store keyed by SHA-256, so identical files uploaded by different owners are stored once and shared through `file_meta`.
+## 2.2 What an agent needs from a drive
 
-![Data model](figures/drawio/fig3-er.svg)
+It is worth being precise about which drive primitives actually matter to an agent, because it explains why the binding cannot simply reuse share links (Figure 2).
 
-*Figure 3. Core relations among the 19 tables. `file_meta` deduplicates content across owners; `collab_member` tracks per-member scope and contribution.*
+![Projection](figures/drawio/fig6-projection.svg)
 
-## 2.2 Seller Agent: from Files to a Product
+*Figure 2. Drive primitives project onto agent needs: a file tree becomes a scoped read, content bytes become a streaming read, owner identity becomes attribution, and share links become audience control.*
 
-The seller agent is the part a visitor interacts with first. It exposes a **natural-language authoring** surface rather than a template picker: the owner types a sentence such as *"turn my commute records into average duration per line"*, and after a 500 ms debounce the agent returns an interpretation inline — template, confidence, one sentence of reasoning, and the list of fields it will produce.
+A file tree maps to *scoped read*: the agent needs to enumerate only the subtree it was granted, plus the guarantee that enumeration does not widen that subtree. Content bytes map to *streaming read*: agents must handle files larger than memory and formats the model cannot ingest directly. Owner identity maps to *attribution*: every product must be traceable to one accountable owner, which is exactly why publishing a joint product is reserved for its initiator. Share links map to *audience control*: a link grants a human broad access to one file, whereas the agent needs narrow access to a computed result. The system therefore does not expose share links to agents at all; it exposes a scope record, a streaming reader and a receipt writer.
 
-Template selection runs in two passes. A **rule-based matcher** scores each built-in template by keyword and cue overlap; this pass always returns an answer, so the demo works with no model configured. When a model is available, an **LLM pass** receives the owner's sentence plus the template catalogue and returns a template key, a confidence in `[0,100]`, a rationale and, optionally, what information is missing. The LLM answer is accepted only if its key resolves to a real template; otherwise the rule result stands. Four templates ship today: commute timeliness, home-recipe library, pet-feeding records and reading notes. Fixing the templates is deliberate — products must stay comparable and verifiable across owners.
+## 2.3 The access lifecycle
 
-![Processing pipeline](figures/drawio/fig4-pipeline.svg)
+Figure 3 traces one request. The agent binds to a scope, asks the model for a template, and then reads strictly inside that scope. Each chunk passes an on-host scanner before it can be used; a file that trips the scanner is excluded and the reason is written to the receipt. Rows that survive are aggregated, and only the aggregate leaves the drive. The agent then unbinds: the scope is released, and the receipt records both what was read and what was refused.
 
-*Figure 4. The seller-side pipeline. Products contain only aggregates, so listing cannot leak individual records.*
+![Access lifecycle](figures/drawio/fig2-bind.svg)
 
-Construction then proceeds as a streaming pipeline (Figure 4). Each file is opened with a format-specific streaming reader — EasyExcel row-by-row for spreadsheets, StAX over `word/document.xml` for Word, a hand-written literal parser for PDF, on-device OCR for images, controlled unpacking for archives — and every chunk is fed to a **boundary-safe sensitive-information scanner** that keeps a 32-character tail, so an identifier split across two chunks is still matched. Files that trip the scanner are excluded before any model call and recorded in the receipt with a reason.
+*Figure 3. One request's access lifecycle across five lanes. The drive opens bytes only inside the bound scope; the model never receives bytes; the receipt is written in the drive's lane.*
 
-Surviving rows are aggregated by the template's grouping dimension, and groups smaller than `k` (default 3) are dropped. The product therefore contains group-level statistics only; no individual row is ever written to a product, a listing or a collaboration payload.
+Two properties of this lifecycle matter at the booth. First, **the model is not in the data path**: it advises on the template and helps describe the result, but no file content is ever routed through it by default. Second, **the receipt is written where the data is**, on the drive side, so it cannot be rewritten by the party being audited.
 
-## 2.3 Collaboration: Joint Products by Session Code
+## 2.4 Guarding the boundary
 
-A single owner's log is often too thin to be worth listing. Collaboration lets several owners merge their statistics without merging their files (Figure 5).
+The binding is only credible if the checks are explicit rather than emergent, so we implement them as a guard chain (Figure 4). A file open is rejected if it falls outside the ticked scope, if the caller is not the owner of record, or if the on-host scan finds identifiers. A file that passes but exceeds the per-call model budget is trimmed rather than dropped, and the trim is recorded. Every branch writes an outcome, so a denied read is as visible as a successful one.
 
-![Collaboration sequence](figures/drawio/fig5-collab.svg)
+![Access control](figures/drawio/fig5-guard.svg)
 
-*Figure 5. Code-based collaboration. Only the initiator may publish; members can view and extend their own scope.*
+*Figure 4. The guard chain in front of every file open. Denials and exclusions are recorded, not silent.*
 
-The initiator describes the joint product exactly as in the single-owner flow, ticks a folder, and receives an 8-character **session code** and a 6-character **password**. The code is drawn from an alphabet with `0/O/1/I` removed so it can be dictated over the phone or written on a booth card; uniqueness is enforced by a database index and the password is stored as a BCrypt hash and shown exactly once.
+## 2.5 The exposure boundary
 
-A peer redeems both values and — before committing anything — sees an **invite preview**: the title, the initiator, the current members and the fields the product will contain. On joining, the peer ticks their own folder and their agent aggregates locally, uploading only the resulting group statistics. The merge is a **union**: a group is kept if any member covers it, and a `sources` field records how many members support each group, which is exactly what makes the product grow as members join rather than shrink to an intersection.
+Figure 5 states the boundary as a list, which is the form reviewers and visitors ask for. The left column never leaves the drive: raw files, images and archives, full documents, plaintext secrets, individual rows, and any file that already carries identifiers. The right column is what may cross: the owner's sentence, a character-bounded extract, images the owner explicitly requested, group aggregates, and the receipt.
 
-![Collaboration state machine](figures/drawio/fig6-state.svg)
+![Exposure boundary](figures/drawio/fig4-boundary.svg)
 
-*Figure 6. Collaboration state machine. Publishing is terminal: once published, joining is refused.*
+*Figure 5. What stays inside the drive and what may leave it. The dividing line is a product of design, not of configuration.*
 
-Publishing is reserved for the initiator and is terminal: after publication the session stops accepting members, and the resulting product is listed with `source_kind = joint` so buyers can see it was assembled from several owners. This division keeps the accountability of a listing with exactly one party while allowing many parties to contribute data.
+The bounded extract deserves a note: it is the only place where file-derived text can reach a model, and it is capped at 1 200 characters per file and six files per call. Files whose content carries an ID card number, a phone number, a bank card or repost markers are filtered before any call is made, so the cap applies to already-clean text.
 
-## 2.4 Market and Delivery
+## 2.6 Extending the binding across owners
 
-The market side is deliberately thin, because the demo's contribution is on the agent side. A buyer posts a demand in natural language; the market parses it into the same structured representation used for products, hard-filters active listings by keyword and domain, scores the survivors on keyword overlap, temporal coverage, quality and price, and pushes the top matches with human-readable reasons such as *"matched keywords: commute, duration; coverage until 2026-03"*. Listings expose fields, coverage, quality, a masked sample and the build receipt — never a source filename.
+A single owner's drive often holds too little to be worth listing. The same binding therefore composes horizontally (Figure 6): several owners each keep their own scope, run their own host-side reduction, and exchange only group statistics. The initiator receives an 8-character session code and a 6-character password — the alphabet omits `0/O/1/I` so the code can be dictated — and a collaborator who redeems both sees an invite preview before committing anything. Merging is a union over group keys, and a `sources` field records how many drives support each group, which is what makes the joint product grow with each member.
 
-Delivery is a three-state handshake: the buyer requests, the seller accepts, the seller marks delivered. No payload is transferred, matching the demo's scope.
+![Collaboration](figures/drawio/fig3-collab.svg)
+
+*Figure 6. Collaboration is the same binding applied per owner. Each drive reduces locally; the hub sees group statistics only.*
+
+Publishing remains with the initiator, because attribution must stay with one accountable party even when data comes from many. The market therefore lists a joint product exactly like a single-owner one, distinguished only by a provenance marker and the contributor list in its receipt.
 
 ## 3 Demonstration Scenarios
 
-The booth tour runs in about three minutes across three pages using two accounts; every account is bidirectionally capable.
+The booth tour runs in about three minutes across three surfaces; every account can both sell and buy.
 
-**S1 — Describe a product in one sentence (30 s).** The owner types a sentence and watches the interpretation appear beside the form. *Input:* free text up to 200 characters. *Output:* template, confidence, reasoning and field list. All four built-in templates are reachable from natural phrasing; vague input such as *"I want to sell some data"* still resolves, with a low confidence that flags the assumption.
+**S1 — Describe a product in one sentence (30 s).** The owner types *"turn my commute records into average duration per line"*. Within a second the agent answers with a template, a confidence, one sentence of reasoning, and the fields it will produce. A rule-based pass guarantees an answer even with no model configured, so the demo never stalls on network.
 
-**S2 — Watch the Agent parse and aggregate (30 s).** The owner ticks folders and starts the build. The dialog streams per-file events — parsed, streamed Excel, skipped — and ends with a product card reporting the number of groups, the number of contributing files and a quality score, plus a four-row preview of the aggregated result. A five-row spreadsheet becomes a product in about 4.5 s. If the description and the chosen files disagree, the card says so explicitly instead of presenting an empty product.
+**S2 — Watch the scoped reads (30 s).** The owner ticks folders and starts the build. The dialog streams per-file events — read, parsed, skipped, excluded with reason — and ends with a product card reporting group count, contributing files and a quality score, plus a four-row preview of the aggregate. A five-row spreadsheet becomes a product in about 4.5 s. If the sentence and the ticked folders disagree, the card says so instead of presenting an empty product.
 
-**S3 — Join a joint product with a code (45 s).** The presenter creates a joint project and hands the code to a visitor, who redeems it, inspects the invite preview, ticks their own folder and joins. The group count increases immediately and is visible to both parties; members may later add folders to grow the product further. The owner and member views differ exactly where they should: only the owner sees a publish button.
+**S3 — Join a joint product with a code (45 s).** The presenter creates a joint product and hands an 8-character code to a visitor. The visitor redeems the code and password, inspects the invite preview, ticks their own folder, and joins; the group count rises immediately and is visible to both parties. Only the initiator's view carries a publish button.
 
-**S4 — Market matching and push (30 s).** A buyer posts a demand; the market returns ranked pushes with reasons. The audience can check that no raw filename appears anywhere in the listing.
+**S4 — Check the boundary (30 s).** A buyer posts a demand; the market returns ranked pushes with reasons. The audience can then open a listing and verify that it contains no source filename, no individual row, and a receipt whose hashes match the files the seller added.
 
-**S5 — Minimal delivery handshake (15 s).** Buyer requests, seller accepts, seller marks delivered.
+**S5 — Minimal delivery (15 s).** Buyer requests, seller accepts, seller marks delivered. Three states, no payload transfer.
 
-## 4 Verification and Ethical Considerations
+## 4 Implementation Notes
 
-## 4.1 Scripted End-to-End Verification
+The binding is realised inside a single Spring Boot / Kotlin process; the surfaces above correspond to modules rather than to deployment units. Three implementation choices are worth reporting because they shaped the binding.
 
-Rather than offline benchmarks, we ship six executable suites that a reviewer can run against the live system (Table 1). Each asserts user-visible behaviour over the REST surface, so a passing run means the demonstrated flow actually works.
+**Scopes are records, not paths.** A scope is persisted per owner and per collaboration member, and echoed back in the collaboration view. This costs an extra table but makes revocation and audit trivial, and it lets a member's contribution be recomputed from its own scope without consulting the initiator.
+
+**Streaming is what makes host-side reduction affordable.** Spreadsheets are read row by row, Word documents through a streaming XML pull parser, PDFs through a hand-written literal parser, images through on-device OCR, archives through controlled unpacking. The sensitive-information scanner keeps a 32-character tail across chunk boundaries, so an identifier split between two reads is still caught — a detail that only matters because we stream.
+
+**The receipt is the product's contract.** It records source hashes, aggregation parameters, the model version if a model was consulted, and each exclusion with its reason. A buyer can therefore check a listing against evidence without ever gaining access to the drive.
+
+**Ethics.** All demonstration data is synthetic. Only ticked subtrees are opened; scopes are persisted and shown back to the owner. Aggregates are k-anonymous with k = 3. Files that already carry personal identifiers are filtered on the host before any model call, and model-returned evidence must appear verbatim in the parsed text or it is replaced by a local snippet. Provider keys are encrypted with AES-256-GCM under a master key held outside the database, and collaboration passwords are hashed, shown once, and never returned by any endpoint.
+
+## 5 Verification
+
+Rather than offline benchmarks, we ship six executable suites that a reviewer can run against the live system (Table 1). Each asserts user-visible behaviour on the REST surface, so a passing run means the demonstrated flow actually works.
 
 **Table 1: Scripted end-to-end suites shipped with the artifact.**
 
 | Suite | Scope | Checks |
 | --- | --- | --- |
-| `collab-code-test` | code/password format, invite preview, wrong password, product growth on join, idempotent rejoin, non-initiator publish refusal, no join after publish, outsider isolation | 29 |
-| `market-smoke-test` | build receipt with source hashes, list/delist with push invalidation, demand matching with reasons, delivery states, joint product provenance | 37 |
-| `seller-intent-test` | four natural-language phrasings map to intended templates, vague input resolves, product built from description, model on by default | 11 |
-| `smoke-test` | authentication, quota, chunked upload, deduplication, recycle bin, administration | 27 |
-| `scan-progress-test` | asynchronous build, live progress, previews, crash-free parsing, preview authorization | 18 |
-| `ai-provider-smoke-test` | provider CRUD, key masking, connectivity test, failover with cooldown | 28 |
+| `collab-code-test` | code and password format, invite preview, wrong password, product growth on join, idempotent rejoin, non-initiator publish refusal, no join after publish, outsider isolation | 29 |
+| `market-smoke-test` | receipt with source hashes, listing and delisting, demand matching with reasons, delivery states, provenance of a joint product | 37 |
+| `seller-intent-test` | four natural-language phrasings map to intended templates, vague input resolves, product built from a description | 11 |
+| `drive-smoke-test` | authentication, quota, chunked upload, deduplication, recycle bin | 27 |
+| `scan-progress-test` | asynchronous build, live progress, crash-free parsing, preview authorization | 18 |
+| `ai-provider-test` | provider CRUD, key masking, connectivity, failover with cooldown | 28 |
 
-**Observed behaviour.** On the demo laptop with a cloud model, a five-row spreadsheet becomes a product in **4.5 s** end to end (parse, aggregate, describe), and a joint product shows its first growth within one second of the second member joining. Failover between model providers completes in under one second, after which the interface labels judgments as rule-based rather than silently degrading.
+Measured on the demo laptop with a cloud model: a five-row spreadsheet becomes a product in **4.5 s** end to end; a joint product shows its first growth within one second of the second member joining; the guard chain adds no measurable latency because it runs on already-buffered chunks.
 
-## 4.2 Privacy and Ethical Considerations
+## 6 Limitations
 
-**Explicit, minimal authorization.** Only ticked folders are opened; scope is persisted per member and echoed in the collaboration view. Accounts are self-service and all demonstration data is synthetic.
+Three limitations are worth stating plainly. First, the template set is closed: a request outside the four built-in schemas resolves to the nearest template with low confidence rather than to a new extraction rule, so the system sells aggregated tables rather than arbitrary products. Second, the union merge is a pragmatic rather than a formal privacy guarantee — it prevents record exchange and drops sparse groups, but an adversary who joins repeatedly with overlapping scopes could in principle narrow a group by differencing, which is why we plan a differentially private estimator. Third, the binding is per-request rather than continuous: an agent holds a scope for the duration of a build and then unbinds, so there is no standing grant, and no notion of an agent that watches a folder over time.
 
-**Aggregation by construction.** Products contain group-level statistics only, with k-anonymity dropping sparse groups. Individual rows are never written to a product, a listing or a collaboration payload, so listing cannot leak a record even if the buyer is adversarial.
+## 7 Conclusion
 
-**Data minimisation towards third parties.** Files whose content already carries an ID card, phone number, bank card or repost markers are filtered on the host; only the remaining text (at most 1200 characters per file, six files per call) or an explicitly requested image is sent to a model. The model never receives images, archives or whole documents that were not asked for.
-
-**Traceability over fluency.** Model-returned evidence must appear verbatim in the parsed text; unverifiable quotes are replaced by a local snippet. Build receipts bind each product to its source file hashes and are shown to buyers, so a listing can be checked against what was actually read.
-
-**Secret handling.** Provider keys are encrypted with AES-256-GCM under a master key held outside the database and outside version control. Collaboration passwords are BCrypt hashed, displayed exactly once, and stripped from every response by a dedicated view object — an automated assertion checks that no response contains a password hash.
-
-**Human oversight and honest limits.** Agents recommend and assemble; publishing a joint product is reserved for its initiator and delivery is a human handshake. Every product states whether a model participated, and files that cannot be parsed are listed with a reason rather than silently dropped.
-
-## 4.3 Relation to Existing Systems
-
-**Table 2: AgentCloudDisk against the three families of systems it draws on.**
-
-| System family | Where data lives | What is produced | Multi-party | Raw files leave owner |
-| --- | --- | --- | --- | --- |
-| Consumer cloud drives | user drive | files | no | yes (server side) |
-| Commercial data marketplaces | curated warehouses | datasets | no | yes |
-| Federated learning platforms | owner device | model updates | yes | no |
-| **AgentCloudDisk** | user drive | aggregated products | yes (session code) | no (aggregates only) |
-
-Table 2 positions the system. Relative to consumer drives it adds a *product* abstraction and an agent that can build one from a sentence. Relative to commercial marketplaces it removes the requirement that a supplier already holds a curated warehouse: the supplier is an ordinary owner whose agent does the curating. Relative to federated learning it targets a different artefact — instead of a model, the parties exchange group-level statistics that a non-expert buyer can inspect before paying. What no row of the table captures is the combination we consider the contribution: an agent that constructs the product, a short code that admits collaborators, and a receipt that lets a buyer check both.
-
-## 4.4 Limitations
-
-Three limitations are worth stating plainly. First, the template set is closed: a request for a product family outside the four built-in schemas resolves to the nearest template with a low confidence rather than to a new extraction rule, so the system currently sells aggregated *tables*, not arbitrary data products. Second, the union merge is a pragmatic rather than a formal privacy guarantee: it prevents raw-record exchange and drops sparse groups, but a member who joins repeatedly with overlapping but slightly different scopes could in principle narrow a group through differencing, which is why we plan to move to a differentially private estimator. Third, collaborative sessions are single-initiator and single-use: there is no way to rotate a leaked password, and a session cannot be forked into a second product without creating a new one from scratch.
-
-## 5 Conclusion
-
-AgentCloudDisk shows that an ordinary cloud drive can participate in a data-element market without surrendering its contents: streaming parsing plus on-host privacy filtering decides what may be shown and what may leave the machine, an LLM Agent turns authorized files into k-anonymous products from a one-sentence request, and a short session code lets several owners pool their statistics into a joint product that grows with each member. The whole loop — describe, build, collaborate, list, match, deliver — runs on one laptop, with or without Internet. In future work we intend to open the template layer so that owners can define their own aggregation schemas, and to replace the union merge with a differentially private estimator so that joint products remain useful under stronger formal guarantees.
+AgentCloudDisk is an argument that the interesting engineering sits between the drive and the agent rather than in either one. We showed that a drive can lend an agent exactly three things — a scoped authority, a host-side reduction boundary, and a receipt — and that these three are sufficient to let an agent read personal files, collaborate across drives, and publish an auditable product without any file leaving its owner's machine. The whole loop runs on one laptop, with or without Internet. We invite WWW attendees to bring a folder and a code.
 
 ## References
 

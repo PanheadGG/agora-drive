@@ -1,0 +1,58 @@
+<mxfile host="drawio" version="32.6.10">
+  <diagram id="fig4-boundary" name="Fig4-Boundary">
+    <mxGraphModel dx="760" dy="420" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="760" pageHeight="420" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="in" value="Inside the owner drive — never transmitted" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1;dashed=0;verticalAlign=top;align=left;spacingLeft=8;spacingTop=3;fontSize=10;fontStyle=1;fontColor=#2D3748;container=1;collapsible=0;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="16" y="8" width="352" height="396" as="geometry" />
+        </mxCell>
+        <mxCell id="out" value="Leaves the drive" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1;dashed=0;verticalAlign=top;align=left;spacingLeft=8;spacingTop=3;fontSize=10;fontStyle=1;fontColor=#2D3748;container=1;collapsible=0;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="392" y="8" width="352" height="396" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" value="raw files, images, archives" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="32" y="48" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="full documents" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="32" y="112" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="plaintext secrets" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="32" y="176" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="every individual row" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="32" y="240" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" value="PII-bearing files" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="32" y="304" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="o1" value="sentence to template choice" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="408" y="48" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="o2" value="bounded extract, 1200 chars, 6 files" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="408" y="112" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="o3" value="explicitly requested images" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="408" y="176" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="o4" value="group aggregates, k at least 3" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#E8F5EC;strokeColor=#2E9E5B;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="408" y="240" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="o5" value="build receipt with source hashes" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#F2EDF9;strokeColor=#7E57C2;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="408" y="304" width="320" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="extract" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="f1" target="o2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;dashed=1;endArrow=block;endFill=1;" edge="1" parent="1" source="f2" target="o2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="aggregate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="f4" target="o4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="reason" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;dashed=1;endArrow=block;endFill=1;" edge="1" parent="1" source="f5" target="o5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
