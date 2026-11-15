@@ -73,12 +73,20 @@ const h1m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)
 const titleHtml = h1m ? h1m[1].replace(/<[^>]+>/g, '').trim() : 'Demo Paper'
 html = html.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, '')
 
-// 开头的 blockquote（作者/双盲声明）+ 紧随的第一个 hr 之前的段落 = 题头区
+// 开头的头部区：**Demo Paper …** 段落与 blockquote（作者/双盲声明）都属于题头，
+// 顺序可能互换，所以在前 600 字符内按出现顺序把它们都抽走
 let headerHtml = ''
-const headMatch = html.match(/^\s*<blockquote>([\s\S]*?)<\/blockquote>/)
-if (headMatch) {
-  headerHtml = headMatch[1]
-  html = html.replace(/^\s*<blockquote>[\s\S]*?<\/blockquote>/, '')
+{
+  const headRe = /(<p>\s*<strong>(?:Demo Paper|演示论文)[\s\S]*?<\/strong>\s*<\/p>)|(<blockquote>[\s\S]*?<\/blockquote>)/g
+  const head = html.slice(0, 600)
+  const parts = []
+  let m
+  while ((m = headRe.exec(head))) parts.push(m[0])
+  for (const p of parts) {
+    const isQuote = p.indexOf('<blockquote>') === 0;
+    headerHtml += isQuote ? p.slice(12, p.length - 13) : p;
+    html = html.replace(p, '');
+  }
 }
 // 第一个 <hr> 之前若是段落/关键词，也并入题头
 const kwSplit = html.indexOf('<hr>')
@@ -87,6 +95,18 @@ if (kwSplit > 0 && kwSplit < 900) {
   html = html.slice(kwSplit + 4)
 }
 html = html.replace(/^\s*<hr>\s*/, '')
+
+// ACM 前置区：CCS Concepts / Keywords / ACM Reference Format 用小型区块放在首栏开头
+let frontHtml = ''
+const fmNames = ['CCS Concepts', 'Keywords', 'ACM Reference Format']
+for (const name of fmNames) {
+  const re = new RegExp('<h2[^>]*>\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*<\\/h2>([\\s\\S]*?)(?=<h[23][^>]*>|$)', 'i')
+  const m = html.match(re)
+  if (!m) continue
+  frontHtml += '<h2>' + name + '</h2>' + m[1]
+  html = html.replace(re, '')
+}
+if (frontHtml) frontHtml = '<div class="frontmatter">' + frontHtml + '</div>'
 
 // 题头里的 **Demo Paper — ...** / **演示论文 — ...** 拎出来当 venue 行
 let venue = ''
@@ -133,6 +153,18 @@ body {
 h2 { font-family: ${SANS}; font-size: 9.8pt; font-weight: 700; margin: 9pt 0 3.5pt; break-after: avoid; }
 h3 { font-family: ${SANS}; font-size: 8.8pt; font-weight: 700; margin: 7pt 0 2.5pt; break-after: avoid; }
 h4 { font-family: ${SANS}; font-size: 8.4pt; font-weight: 700; margin: 6pt 0 2pt; break-after: avoid; }
+
+/* ACM 前置区：CCS Concepts / Keywords / ACM Reference Format 用小型标题 */
+.frontmatter { font-size: 7.8pt; line-height: 1.34; color: #1a1a1a; margin: 0 0 7pt; }
+.frontmatter h2 {
+  font-family: ${SANS}; font-size: 8.2pt; font-weight: 700;
+  margin: 6pt 0 2pt; break-after: avoid;
+}
+.frontmatter h2:first-child { margin-top: 0; }
+.frontmatter p { margin: 0 0 2.4pt; }
+.frontmatter ul { margin: 0 0 2.4pt; padding-left: 10pt; }
+.frontmatter li { margin: 0 0 1pt; }
+.frontmatter code { font-size: 7pt; }
 p { margin: 0 0 3.8pt; orphans: 2; widows: 2; }
 ul, ol { margin: 0 0 4pt; padding-left: 11pt; }
 li { margin: 0 0 2pt; }
@@ -213,6 +245,7 @@ const htmlDoc = `<!doctype html>
   <div class="meta">${headerHtml}</div>
 </div>
 <div class="body">
+${frontHtml}
 ${html}
 </div>
 <script src="${MERMAID_JS}" onload="window.__mermaidLoaded=true"></script>
