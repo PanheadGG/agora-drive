@@ -1,0 +1,55 @@
+<mxfile host="drawio" version="32.6.10">
+  <diagram id="fig1-loop" name="Fig1-SystemLoop">
+    <mxGraphModel dx="760" dy="386" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="760" pageHeight="386" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="g1" value="Seller side — one agent per owner" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1;dashed=0;verticalAlign=top;align=left;spacingLeft=8;spacingTop=3;fontSize=10;fontStyle=1;fontColor=#2D3748;container=1;collapsible=0;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="16" y="8" width="688" height="216" as="geometry" />
+        </mxCell>
+        <mxCell id="own" value="Owner drive<br><font style="font-size:10px">raw files</font>" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EDF7F7;strokeColor=#0E8A8A;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="48" y="56" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ag" value="Seller Agent<br><font style="font-size:10px">parse · aggregate</font>" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="236" y="56" width="152" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="peer" value="Peer Agent<br><font style="font-size:10px">code + password</font>" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#FFF4E5;strokeColor=#E08B2D;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="444" y="56" width="152" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="prod" value="Data product<br><font style="font-size:10px">k-anon aggregates</font>" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#E8F5EC;strokeColor=#2E9E5B;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="236" y="146" width="152" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="joint" value="Joint product<br><font style="font-size:10px">grows per member</font>" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#E8F5EC;strokeColor=#2E9E5B;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="444" y="146" width="152" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="mk" value="Data market<br><font style="font-size:10px">descriptions only</font>" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#F2EDF9;strokeColor=#7E57C2;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="236" y="250" width="152" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="buyer" value="Buyer" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;absoluteArcSize=1;fillColor=#EAF2FB;strokeColor=#3B7DD8;strokeWidth=1.5;fontSize=12;fontColor=#1A202C;fontFamily=Helvetica;align=center;verticalAlign=middle;spacing=4;" vertex="1" parent="1">
+          <mxGeometry x="236" y="326" width="152" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="own" target="ag">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="ag" target="prod">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="peer" target="joint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="ag" target="joint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="prod" target="mk">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="joint" target="mk">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="demand / matched push" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A5568;strokeWidth=1.4;fontSize=11;fontColor=#2D3748;fontFamily=Helvetica;labelBackgroundColor=#FFFFFF;endArrow=block;endFill=1;" edge="1" parent="1" source="mk" target="buyer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

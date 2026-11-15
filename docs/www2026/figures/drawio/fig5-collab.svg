@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 452" width="760" height="452">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4A5568"/>
+    </marker>
+  </defs>
+  <rect x="16" y="8" width="224" height="440" rx="10" ry="10" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.2"/>
+  <text x="28" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Initiator (Agent A)</text>
+  <rect x="248" y="8" width="224" height="440" rx="10" ry="10" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.2"/>
+  <text x="260" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Collaboration hub</text>
+  <rect x="480" y="8" width="224" height="440" rx="10" ry="10" fill="#EAF2FB" stroke="#3B7DD8" stroke-width="1.2"/>
+  <text x="492" y="26" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="#2D3748">Member (Agent B)</text>
+  <path d="M212.0 66.0 L276.0 66.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M360.0 88.0 L360.0 112.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M444.0 134.0 L508.0 134.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <rect x="441.2" y="125.0" width="69.6" height="16" fill="#FFFFFF" opacity="0.94"/>
+  <text x="476.0" y="134.0" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#2D3748">code (once)</text>
+  <path d="M592.0 156.0 L592.0 180.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M592.0 224.0 L592.0 248.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M508.0 270.0 L444.0 270.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M212.0 338.0 L276.0 338.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M508.0 338.0 L444.0 338.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <path d="M276.0 270.0 L250.0 270.0 L250.0 298.0 L128.0 298.0 L128.0 316.0" fill="none" stroke="#4A5568" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <path d="M360.0 360.0 L360.0 384.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M276.0 406.0 L212.0 406.0" fill="none" stroke="#4A5568" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <rect x="44" y="44" width="168" height="44" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="128" y="66.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">describe joint product</text>
+  <rect x="276" y="44" width="168" height="44" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="360" y="66.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">create session</text>
+  <rect x="276" y="112" width="168" height="44" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="360" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">issue code + password</text>
+  <rect x="508" y="112" width="168" height="44" rx="8" ry="8" fill="#EAF2FB" stroke="#3B7DD8" stroke-width="1.5"/>
+  <text x="592" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">receive code</text>
+  <rect x="508" y="180" width="168" height="44" rx="8" ry="8" fill="#EAF2FB" stroke="#3B7DD8" stroke-width="1.5"/>
+  <text x="592" y="202.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">preview invite</text>
+  <rect x="508" y="248" width="168" height="44" rx="8" ry="8" fill="#EAF2FB" stroke="#3B7DD8" stroke-width="1.5"/>
+  <text x="592" y="270.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">join + tick folder</text>
+  <rect x="276" y="248" width="168" height="44" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="360" y="270.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">verify code</text>
+  <rect x="44" y="316" width="168" height="44" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="128" y="338.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">local aggregation</text>
+  <rect x="508" y="316" width="168" height="44" rx="8" ry="8" fill="#EAF2FB" stroke="#3B7DD8" stroke-width="1.5"/>
+  <text x="592" y="338.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">local aggregation</text>
+  <rect x="276" y="316" width="168" height="44" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="360" y="338.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">union of group stats</text>
+  <rect x="276" y="384" width="168" height="44" rx="8" ry="8" fill="#E8F5EC" stroke="#2E9E5B" stroke-width="1.5"/>
+  <text x="360" y="406.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">product grows</text>
+  <rect x="44" y="384" width="168" height="44" rx="8" ry="8" fill="#FFF4E5" stroke="#E08B2D" stroke-width="1.5"/>
+  <text x="128" y="406.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#1A202C">publish</text>
+</svg>

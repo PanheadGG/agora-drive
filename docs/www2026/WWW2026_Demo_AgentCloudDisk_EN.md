@@ -47,19 +47,19 @@ Our demo answers these with a **working system**, not a mock-up. Contributions:
 
 ## 2.1 Architecture Overview
 
-![System loop](figures/en-01.svg)
+![System loop](figures/drawio/fig1-loop.svg)
 
 *Figure 1. The seller-side loop. Owners' Agents produce products; the market only ever sees descriptions, never file content.*
 
 AgentCloudDisk is a three-layer system (Figure 2). The **browser layer** is a Vue 3 single-page application with four surfaces: the drive, the seller studio, the market and the collaboration panel. The **service layer** is one Spring Boot / Kotlin process exposing 76 REST endpoints behind JWT authentication. The **agent core** implements the two capabilities this demo is about — product construction and collaboration — and delegates storage, model access and key management to infrastructure modules.
 
-![Architecture](figures/en-02.svg)
+![Architecture](figures/drawio/fig2-arch.svg)
 
 *Figure 2. Component view. Everything except the optional model call runs inside one JVM.*
 
 Persistence is PostgreSQL 18 with 19 tables managed by nine Flyway migrations; file content lives in a content-addressed store keyed by SHA-256, so identical files uploaded by different owners are stored once and shared through `file_meta`.
 
-![Data model](figures/en-03.svg)
+![Data model](figures/drawio/fig3-er.svg)
 
 *Figure 3. Core relations among the 19 tables. `file_meta` deduplicates content across owners; `collab_member` tracks per-member scope and contribution.*
 
@@ -69,7 +69,7 @@ The seller agent is the part a visitor interacts with first. It exposes a **natu
 
 Template selection runs in two passes. A **rule-based matcher** scores each built-in template by keyword and cue overlap; this pass always returns an answer, so the demo works with no model configured. When a model is available, an **LLM pass** receives the owner's sentence plus the template catalogue and returns a template key, a confidence in `[0,100]`, a rationale and, optionally, what information is missing. The LLM answer is accepted only if its key resolves to a real template; otherwise the rule result stands. Four templates ship today: commute timeliness, home-recipe library, pet-feeding records and reading notes. Fixing the templates is deliberate — products must stay comparable and verifiable across owners.
 
-![Processing pipeline](figures/en-05.svg)
+![Processing pipeline](figures/drawio/fig4-pipeline.svg)
 
 *Figure 4. The seller-side pipeline. Products contain only aggregates, so listing cannot leak individual records.*
 
@@ -81,7 +81,7 @@ Surviving rows are aggregated by the template's grouping dimension, and groups s
 
 A single owner's log is often too thin to be worth listing. Collaboration lets several owners merge their statistics without merging their files (Figure 5).
 
-![Collaboration sequence](figures/en-04.svg)
+![Collaboration sequence](figures/drawio/fig5-collab.svg)
 
 *Figure 5. Code-based collaboration. Only the initiator may publish; members can view and extend their own scope.*
 
@@ -89,7 +89,7 @@ The initiator describes the joint product exactly as in the single-owner flow, t
 
 A peer redeems both values and — before committing anything — sees an **invite preview**: the title, the initiator, the current members and the fields the product will contain. On joining, the peer ticks their own folder and their agent aggregates locally, uploading only the resulting group statistics. The merge is a **union**: a group is kept if any member covers it, and a `sources` field records how many members support each group, which is exactly what makes the product grow as members join rather than shrink to an intersection.
 
-![Collaboration state machine](figures/en-06.svg)
+![Collaboration state machine](figures/drawio/fig6-state.svg)
 
 *Figure 6. Collaboration state machine. Publishing is terminal: once published, joining is refused.*
 
