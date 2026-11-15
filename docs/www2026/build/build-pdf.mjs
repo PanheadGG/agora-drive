@@ -29,15 +29,39 @@ marked.setOptions({ gfm: true, breaks: false })
 let html = marked.parse(withPlaceholders)
 html = html.replace(/<p>\s*MERMAIDPLACEHOLDER(\d+)X\s*<\/p>/g, (_m, i) => '\n<div class="figure mermaid-box" data-idx="' + i + '"></div>\n')
 
-// ---------- 3. 图片：路径转绝对 + 包进 figure ----------
+// ---------- 3. 图片：SVG 直接内联（自包含，避免 <img> 对 SVG 的兼容问题），其余转绝对路径 ----------
 const mdDir = dirname(src)
 html = html.replace(/(<img[^>]*?src=")([^"]+)(")/g, (_m, pre, s, post) => {
   if (/^(https?:|data:|file:)/i.test(s)) return _m
   const abs = resolve(mdDir, s).replace(/\\/g, '/')
+  if (/\.svg$/i.test(abs)) {
+    // 内联 SVG：HTML 自包含，且不受 <img> 对 SVG 的渲染差异影响
+    try {
+      const svg = readFileSync(abs, 'utf8')
+        .replace(/<\?xml[^>]*\?>/, '')
+        .replace(/<!DOCTYPE[^>]*>/, '')
+        .trim()
+      return pre + 'data:image/svg+xml;utf8,' + encodeURIComponent(svg) + post
+    } catch (e) {
+      console.error('svg inline failed: ' + abs + ' :: ' + e.message)
+      return pre + 'file:///' + abs + post
+    }
+  }
   return pre + 'file:///' + abs + post
 })
 // markdown 的 ![]() 会变成裸 <p><img></p>，必须包进 .figure 才能套用尺寸约束
 html = html.replace(/<p>\s*(<img[^>]*>)\s*<\/p>/g, '<div class="figure">$1</div>')
+// 窄高图（宽高比 < 1.1）等比缩小后字会太小，额外加 class 放大显示
+html = html.replace(/<img([^>]*?)src="(data:image\/svg[^"]+)"/g, (m, pre, data) => {
+  try {
+    const svg = decodeURIComponent(data.replace('data:image/svg+xml;utf8,', ''))
+    const vb = (svg.match(/viewBox="([^"]+)"/) || [])[1] || ''
+    const p = vb.split(/\s+/).map(Number)
+    const ratio = (p[2] || 1) / (p[3] || 1)
+    if (ratio < 1.15) return '<img class="tall"' + pre + 'src="' + data + '"'
+  } catch (e) { /* 忽略 */ }
+  return m
+})
 // 图注：整段只有一个 <em>，且以「图 N」/「Figure N」开头
 html = html.replace(/<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/g, (m, inner) => {
   if (!/^\s*(图|Figure)\s*\d+/.test(inner)) return m
@@ -142,8 +166,19 @@ th { background: #eef2f7; font-weight: 700; font-family: ${SANS}; font-size: 7.2
 /* 截图默认按栏宽显示，但限制高度，避免一张图占掉半页 */
 .figure img {
   display: block; margin: 0 auto;
-  max-width: 100%; max-height: 46mm; width: auto; height: auto;
-  border: 0.4pt solid #dcdfe4; border-radius: 2px;
+  max-width: 100%; max-height: 96mm; width: auto; height: auto;
+  border: none;
+}
+/* SVG 矢量图：撑满栏宽，同时限制高度避免独占一栏 */
+.figure img[src^="data:image/svg"] {
+  width: 100%; max-width: 100%; max-height: 62mm;
+  border: none; background: none;
+}
+/* 窄高图放不下整栏高度时，允许略微超出栏宽居中，保证字号可读 */
+.figure img.tall {
+  width: 108% !important;
+  max-width: 108% !important;
+  margin-left: -4% !important;
 }
 .mermaid-box { min-height: 20pt; }
 /* 流程图尽量撑满栏宽 */

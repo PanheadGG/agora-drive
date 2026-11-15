@@ -17,3 +17,6 @@ docs/www2026/_tmp/render/
 *.log
 Thumbs.db
 .DS_Store
+
+# PDF 构建过程的浏览器配置
+docs/www2026/.chrome-pdf-profile/
