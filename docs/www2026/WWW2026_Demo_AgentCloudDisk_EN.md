@@ -133,12 +133,12 @@ Rather than offline benchmarks we provide six executable suites that a reviewer 
 
 | Suite | Scope | Checks |
 | --- | --- | --- |
-| `collab-code-test` | code and password format, invite preview, wrong password, product growth on join, idempotent rejoin, publication refusal for non-initiators, closure after publication, isolation of outsiders | 29 |
-| `market-smoke-test` | receipt with source hashes, listing and delisting, demand matching with reasons, delivery states, provenance of a joint product | 37 |
-| `seller-intent-test` | four natural-language phrasings map onto the intended templates, vague input resolves, product built from a description | 11 |
-| `drive-smoke-test` | authentication, quota, resumable upload, deduplication, recycle bin | 27 |
-| `scan-progress-test` | asynchronous build, live progress, crash-free parsing, preview authorisation | 18 |
-| `ai-provider-test` | provider management, key masking, connectivity, failover with cooldown | 28 |
+| `collab-code-test` | code, join, publish, isolation | 29 |
+| `market-smoke-test` | receipt, listing, matching, delivery | 37 |
+| `seller-intent-test` | phrasing to template, build | 11 |
+| `drive-smoke-test` | auth, quota, upload, dedup | 27 |
+| `scan-progress-test` | async build, progress, preview | 18 |
+| `ai-provider-test` | providers, keys, failover | 28 |
 
 On the demonstration laptop with a cloud model, a five-row spreadsheet becomes a product in 4.5 seconds end to end, a joint product shows its first growth within one second of the second member joining, and the guard chain adds no measurable latency because it operates on chunks that are already buffered.
 

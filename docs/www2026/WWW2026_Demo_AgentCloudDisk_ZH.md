@@ -133,12 +133,12 @@ Anonymous Author(s). 2026. AgentCloudDisk: Binding an LLM Agent to a Personal Cl
 
 | 套件 | 覆盖范围 | 检查项 |
 | --- | --- | --- |
-| `collab-code-test` | 协同号与密码格式、邀请预览、错误密码、加入后产品增大、重复加入幂等、非发起方发布被拒、发布后关闭、外部人员隔离 | 29 |
-| `market-smoke-test` | 含源文件哈希的凭证、上架与下架、需求匹配与理由、交付状态、联合产品的溯源 | 37 |
-| `seller-intent-test` | 四种自然语言表述映射到预期模板、模糊输入仍能落定、由描述直接建产品 | 11 |
-| `drive-smoke-test` | 鉴权、配额、断点续传上传、去重、回收站 | 27 |
-| `scan-progress-test` | 异步构建、实时进度、解析不崩溃、预览鉴权 | 18 |
-| `ai-provider-test` | 平台管理、Key 脱敏、连通性、带冷却的故障切换 | 28 |
+| `collab-code-test` | 协同号、加入、发布、隔离 | 29 |
+| `market-smoke-test` | 凭证、上架、匹配、交付 | 37 |
+| `seller-intent-test` | 表述到模板、构建 | 11 |
+| `drive-smoke-test` | 鉴权、配额、上传、去重 | 27 |
+| `scan-progress-test` | 异步构建、进度、预览 | 18 |
+| `ai-provider-test` | 平台、密钥、切换 | 28 |
 
 在演示笔记本加云端模型上实测：5 行表格端到端成产品耗时 4.5 秒；联合产品在第二位成员加入后 1 秒内显示首次增长；守卫链因为作用于已缓冲的数据块，未带来可测延迟。
 

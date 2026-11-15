@@ -188,10 +188,17 @@ pre code { background: none; padding: 0; font-size: 7.2pt; }
 
 table { width: 100%; border-collapse: collapse; font-size: 7.4pt; margin: 0 0 5pt; break-inside: avoid; table-layout: fixed; }
 th, td {
-  border: 0.4pt solid #d7dbe0; padding: 2pt 3pt; text-align: left; vertical-align: top;
+  border: 0.4pt solid #d7dbe0; padding: 1.6pt 3pt; text-align: left; vertical-align: top;
   word-break: normal; overflow-wrap: break-word; hyphens: none;
 }
 th { background: #eef2f7; font-weight: 700; font-family: ${SANS}; font-size: 7.2pt; }
+/* 三列表格：套件名给足宽度，不换行；覆盖范围居中列；检查项窄列右对齐 */
+table th:first-child, table td:first-child { width: 34%; }
+table th:nth-child(2), table td:nth-child(2) { width: 50%; }
+table th:last-child, table td:last-child { width: 16%; text-align: right; }
+table td:first-child code { white-space: nowrap; }
+/* 表头行不换行，避免每列标题占两行 */
+table th { white-space: nowrap; }
 
 /* 图：限制高度，避免截图撑爆版面 */
 .figure { break-inside: avoid; page-break-inside: avoid; margin: 5pt 0 2pt; text-align: center; }

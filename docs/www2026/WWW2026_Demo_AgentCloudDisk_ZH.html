@@ -59,10 +59,17 @@ pre code { background: none; padding: 0; font-size: 7.2pt; }
 
 table { width: 100%; border-collapse: collapse; font-size: 7.4pt; margin: 0 0 5pt; break-inside: avoid; table-layout: fixed; }
 th, td {
-  border: 0.4pt solid #d7dbe0; padding: 2pt 3pt; text-align: left; vertical-align: top;
+  border: 0.4pt solid #d7dbe0; padding: 1.6pt 3pt; text-align: left; vertical-align: top;
   word-break: normal; overflow-wrap: break-word; hyphens: none;
 }
 th { background: #eef2f7; font-weight: 700; font-family: 'Source Han Sans SC','Microsoft YaHei','PingFang SC',sans-serif; font-size: 7.2pt; }
+/* 三列表格：套件名给足宽度，不换行；覆盖范围居中列；检查项窄列右对齐 */
+table th:first-child, table td:first-child { width: 34%; }
+table th:nth-child(2), table td:nth-child(2) { width: 50%; }
+table th:last-child, table td:last-child { width: 16%; text-align: right; }
+table td:first-child code { white-space: nowrap; }
+/* 表头行不换行，避免每列标题占两行 */
+table th { white-space: nowrap; }
 
 /* 图：限制高度，避免截图撑爆版面 */
 .figure { break-inside: avoid; page-break-inside: avoid; margin: 5pt 0 2pt; text-align: center; }
@@ -189,32 +196,32 @@ td img, th img {
 </thead>
 <tbody><tr>
 <td><code>collab-code-test</code></td>
-<td>协同号与密码格式、邀请预览、错误密码、加入后产品增大、重复加入幂等、非发起方发布被拒、发布后关闭、外部人员隔离</td>
+<td>协同号、加入、发布、隔离</td>
 <td>29</td>
 </tr>
 <tr>
 <td><code>market-smoke-test</code></td>
-<td>含源文件哈希的凭证、上架与下架、需求匹配与理由、交付状态、联合产品的溯源</td>
+<td>凭证、上架、匹配、交付</td>
 <td>37</td>
 </tr>
 <tr>
 <td><code>seller-intent-test</code></td>
-<td>四种自然语言表述映射到预期模板、模糊输入仍能落定、由描述直接建产品</td>
+<td>表述到模板、构建</td>
 <td>11</td>
 </tr>
 <tr>
 <td><code>drive-smoke-test</code></td>
-<td>鉴权、配额、断点续传上传、去重、回收站</td>
+<td>鉴权、配额、上传、去重</td>
 <td>27</td>
 </tr>
 <tr>
 <td><code>scan-progress-test</code></td>
-<td>异步构建、实时进度、解析不崩溃、预览鉴权</td>
+<td>异步构建、进度、预览</td>
 <td>18</td>
 </tr>
 <tr>
 <td><code>ai-provider-test</code></td>
-<td>平台管理、Key 脱敏、连通性、带冷却的故障切换</td>
+<td>平台、密钥、切换</td>
 <td>28</td>
 </tr>
 </tbody></table>

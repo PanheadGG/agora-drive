@@ -59,10 +59,17 @@ pre code { background: none; padding: 0; font-size: 7.2pt; }
 
 table { width: 100%; border-collapse: collapse; font-size: 7.4pt; margin: 0 0 5pt; break-inside: avoid; table-layout: fixed; }
 th, td {
-  border: 0.4pt solid #d7dbe0; padding: 2pt 3pt; text-align: left; vertical-align: top;
+  border: 0.4pt solid #d7dbe0; padding: 1.6pt 3pt; text-align: left; vertical-align: top;
   word-break: normal; overflow-wrap: break-word; hyphens: none;
 }
 th { background: #eef2f7; font-weight: 700; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-size: 7.2pt; }
+/* 三列表格：套件名给足宽度，不换行；覆盖范围居中列；检查项窄列右对齐 */
+table th:first-child, table td:first-child { width: 34%; }
+table th:nth-child(2), table td:nth-child(2) { width: 50%; }
+table th:last-child, table td:last-child { width: 16%; text-align: right; }
+table td:first-child code { white-space: nowrap; }
+/* 表头行不换行，避免每列标题占两行 */
+table th { white-space: nowrap; }
 
 /* 图：限制高度，避免截图撑爆版面 */
 .figure { break-inside: avoid; page-break-inside: avoid; margin: 5pt 0 2pt; text-align: center; }
@@ -189,32 +196,32 @@ Contact: <em><a href="mailto:demo@example.org">demo@example.org</a></em></p>
 </thead>
 <tbody><tr>
 <td><code>collab-code-test</code></td>
-<td>code and password format, invite preview, wrong password, product growth on join, idempotent rejoin, publication refusal for non-initiators, closure after publication, isolation of outsiders</td>
+<td>code, join, publish, isolation</td>
 <td>29</td>
 </tr>
 <tr>
 <td><code>market-smoke-test</code></td>
-<td>receipt with source hashes, listing and delisting, demand matching with reasons, delivery states, provenance of a joint product</td>
+<td>receipt, listing, matching, delivery</td>
 <td>37</td>
 </tr>
 <tr>
 <td><code>seller-intent-test</code></td>
-<td>four natural-language phrasings map onto the intended templates, vague input resolves, product built from a description</td>
+<td>phrasing to template, build</td>
 <td>11</td>
 </tr>
 <tr>
 <td><code>drive-smoke-test</code></td>
-<td>authentication, quota, resumable upload, deduplication, recycle bin</td>
+<td>auth, quota, upload, dedup</td>
 <td>27</td>
 </tr>
 <tr>
 <td><code>scan-progress-test</code></td>
-<td>asynchronous build, live progress, crash-free parsing, preview authorisation</td>
+<td>async build, progress, preview</td>
 <td>18</td>
 </tr>
 <tr>
 <td><code>ai-provider-test</code></td>
-<td>provider management, key masking, connectivity, failover with cooldown</td>
+<td>providers, keys, failover</td>
 <td>28</td>
 </tr>
 </tbody></table>
