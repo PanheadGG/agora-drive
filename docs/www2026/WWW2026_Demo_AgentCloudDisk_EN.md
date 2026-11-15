@@ -40,110 +40,33 @@ Our demo answers these with a **working system**, not a mock-up. Contributions:
 
 ### 2.1 Roles and loop
 
-Every account is bidirectionally capable (buyer and seller); an administrator handles models, users and audits.
+Every account is bidirectionally capable (buyer and seller); an administrator handles models, users and audits. Figure 1 shows the loop: an owner's Agent converts authorized files into a product; several owners may pool their statistics into a joint product; the market matches descriptions against buyer demands.
 
-```mermaid
-flowchart LR
-    subgraph Sellers["Data sellers — one Agent per owner"]
-        U1["Owner drive raw files"] --> A1["Agent parse · aggregate · de-identify"]
-        U2["Owner drive raw files"] --> A2["Agent"]
-        A1 <-->|"session code + password, group stats only"| A2
-        A1 --> P1["Data product"]
-        A1 & A2 --> P3["Joint product grows per member"]
-    end
-    P1 & P3 -->|"owner publishes"| M["Data market"]
-    B["Buyer (same user)"] -->|"post demand"| M
-    M -->|"matched listings pushed"| B
-```
+![System loop](figures/en-01.svg)
 
-*Figure 1. Seller-side agents produce products; the market only ever sees descriptions.*
+*Figure 1. Seller-side agents produce products; the market only ever sees descriptions, never file content.*
 
 ### 2.2 Architecture
 
-```mermaid
-flowchart TB
-    subgraph FE["Browser — Vue 3 + Element Plus"]
-        V1["Drive and preview"]
-        V2["My data products (seller studio)"]
-        V3["Data market (buyer view)"]
-        V4["Collaboration (code + password)"]
-        V5["Admin console"]
-    end
-
-    subgraph BE["Single Spring Boot 4.1.1 / Kotlin process :8080"]
-        C["76 REST endpoints"]
-        AUTH["JWT + BCrypt role guard"]
-        AGENT["Seller agent: template, build, progress"]
-        PARSE["Streaming parsers: EasyExcel, StAX, PDF, OCR, ZIP"]
-        PII["Boundary-safe PII scanner (32-char overlap)"]
-        COLLAB["Collaboration coordinator: code, join, merge"]
-        MARKET["Market engine: filter, score, push"]
-        LLM["Provider router: priority + failover"]
-        CRYPT["AES-256-GCM key vault"]
-    end
-
-    subgraph DATA["Persistence"]
-        PG[("PostgreSQL 18 — 19 tables, Flyway V1-V9")]
-        FS[("Content-addressed store")]
-    end
-
-    subgraph EXT["Optional external"]
-        DS["DeepSeek / OpenAI-compatible"]
-        MOCK["Local mock provider"]
-    end
-
-    V1 --> C
-    V2 --> C
-    V3 --> C
-    V4 --> C
-    V5 --> C
-    C --> AUTH
-    C --> AGENT
-    AGENT --> PARSE
-    PARSE --> PII
-    C --> COLLAB
-    COLLAB --> PARSE
-    C --> MARKET
-    AGENT --> LLM
-    COLLAB --> LLM
-    LLM --> CRYPT
-    LLM -->|"de-identified text / images"| DS
-    LLM --> MOCK
-    C --> PG
-    PARSE --> FS
-```
+![Architecture](figures/en-02.svg)
 
 *Figure 2. Component view. Everything except the optional model call runs inside one JVM.*
 
-| Layer | Technology | Note |
-| --- | --- | --- |
-| Backend | Spring Boot 4.1.1, Kotlin, Amper/Kotlin Toolchain | one process, port 8080 |
-| Persistence | PostgreSQL 18, MyBatis 4.1, Flyway 13.12 | 9 versioned migrations, 19 tables |
-| Files | content-addressed local store, SHA-256 dedup | 5 MB resumable chunks |
-| Parsing | EasyExcel 4.0.3, StAX, custom PDF reader, Windows.Media.Ocr, java.util.zip | all streaming |
-| LLM | DeepSeek / any OpenAI-compatible endpoint, JSON mode | pluggable, with failover |
-| Security | BCrypt, HS256 JWT, AES-256-GCM (12-byte IV, 128-bit tag) | keys never stored in plaintext |
-| Frontend | Vue 3.5, Vite 6, Element Plus 2.9 | light/dark, 1440x900 |
+| Layer | Technology |
+| --- | --- |
+| Backend | Spring Boot 4.1.1, Kotlin, Amper/Kotlin Toolchain |
+| Persistence | PostgreSQL 18, MyBatis 4.1, Flyway 13.12 — 9 migrations, 19 tables |
+| Files | content-addressed store, SHA-256 dedup, 5 MB resumable chunks |
+| Parsing | EasyExcel 4.0.3, StAX, custom PDF reader, Windows.Media.Ocr, java.util.zip — all streaming |
+| LLM | DeepSeek / any OpenAI-compatible endpoint, JSON mode, with failover |
+| Security | BCrypt, HS256 JWT, AES-256-GCM (12-byte IV, 128-bit tag) |
+| Frontend | Vue 3.5, Vite 6, Element Plus 2.9, light/dark |
 
 ### 2.3 Data model
 
-```mermaid
-erDiagram
-    user ||--o{ user_file : owns
-    file_meta ||--o{ user_file : backs
-    user ||--o{ data_product : produces
-    data_product ||--o{ product_build_task : "built by"
-    product_build_task ||--o{ product_build_item : consumes
-    data_product ||--o{ product_listing : "listed as"
-    user ||--o{ market_demand : posts
-    product_listing ||--o{ market_match : "matched to"
-    market_demand ||--o{ market_match : "matched by"
-    market_match ||--o{ delivery_request : converts
-    collab_session ||--o{ collab_member : has
-    collab_session ||--o{ collab_contribution : collects
-```
+![Data model](figures/en-03.svg)
 
-*Figure 3. Nineteen tables; file_meta deduplicates content across owners, collab_member tracks per-member scope and contribution.*
+*Figure 3. Core relations among the 19 tables. `file_meta` deduplicates content across owners; `collab_member` tracks per-member scope and contribution.*
 
 ---
 
@@ -157,53 +80,21 @@ The owner types *"turn my commute records into average duration per line"*. Debo
 
 *Input:* free text up to 200 chars. *Output:* template + confidence + reasoning + field list.
 
-![Agent understands the request](../../screenshots/30-agent-understands.png)
-
-*Figure 4. Natural-language authoring with an explicit, inspectable interpretation.*
-
 ### S2 — Watch the Agent parse and aggregate (30 s)
 
-The owner ticks folders; only those subtrees are read. The build dialog streams per-file events ("parsed", "streamed Excel", "skipped") and ends with a product card showing *N groups · M files · quality score*, plus a **4-row preview table** of the aggregated result. Files containing ID numbers or phone numbers are excluded before any model call, and the card states the privacy rule in plain language.
-
-![Plain-language product card](../../screenshots/29-seller-plain-language.png)
-
-*Figure 5. Product card written for non-technical owners; the warning appears only when the description and the chosen files disagree.*
+The owner ticks folders; only those subtrees are read. The build dialog streams per-file events ("parsed", "streamed Excel", "skipped") and ends with a product card showing *N groups · M files · quality score*, plus a four-row preview table of the aggregated result. Files containing ID numbers or phone numbers are excluded before any model call, and the card states the privacy rule in plain language.
 
 ### S3 — Join a joint product with a code (45 s)
 
-Owner A creates a joint project; a dialog returns an 8-character **session code** (e.g. `XPRZ98NB`) and a 6-character **password**, shown once with copy buttons. Owner B enters both, sees an invite card (title, initiator, current members, fields produced) *before* committing, ticks their own folder and joins. The joint product's group count increases immediately; members may later add folders to grow it further.
+Owner A creates a joint project; a dialog returns an 8-character **session code** (e.g. `XPRZ98NB`) and a 6-character **password**, shown once with copy buttons. Owner B enters both, sees an invite card (title, initiator, current members, fields produced) *before* committing, ticks their own folder and joins. The joint product's group count increases immediately; members may later add folders to grow it further (Figure 4).
 
-```mermaid
-sequenceDiagram
-    participant A as Agent A (initiator)
-    participant H as Collaboration hub
-    participant B as Agent B (member)
-    A->>H: one-sentence request + folder scope
-    H-->>A: session code + password (shown once)
-    A->>B: share code and password out of band
-    B->>H: redeem code + password
-    H-->>B: invite preview (title, initiator, members, fields)
-    B->>H: tick own folder, join
-    Note over H: each side aggregates locally,<br/>only group statistics are exchanged
-    H-->>A: joint product grows (groups, contributing sources)
-    A->>H: publish (initiator only)
-```
+![Collaboration sequence](figures/en-04.svg)
 
-*Figure 6. Code-based collaboration. Only the initiator may publish; members can view and extend their own scope.*
-
-| Joint-product list | Owner view |
-| --- | --- |
-| ![Collaboration list](../../screenshots/32-collab-list.png) | ![Owner view](../../screenshots/31-collab-owner.png) |
-
-*Figure 7. Session list with codes (left) and the owner view with the publish button (right); members instead see "only the initiator can publish".*
+*Figure 4. Code-based collaboration. Only the initiator may publish; members can view and extend their own scope.*
 
 ### S4 — Market matching and push (30 s)
 
 A buyer posts a demand in natural language. The market parses it into a structured requirement, hard-filters listings by keyword and domain, scores the survivors (keyword overlap, temporal coverage, quality, price), and pushes the top matches with **human-readable reasons** ("matched keywords: commute, duration; coverage until 2026-03"). Listings expose fields, coverage, quality, masked samples and the build receipt — never a raw filename.
-
-![Data market](../../screenshots/27-market-catalog.png)
-
-*Figure 8. Market catalogue. Summaries and tags are visible; original files are not.*
 
 ### S5 — Minimal delivery handshake (15 s)
 
@@ -221,42 +112,21 @@ Buyer requests delivery, seller accepts, seller marks delivered. Three states, n
 
 ---
 
-## 4. Implementation and Deployment
+## 4. Implementation
 
 ### 4.1 Processing pipeline
 
-```mermaid
-flowchart TD
-    D["One-sentence request"] --> I["Agent selects template + confidence + reasoning"]
-    I --> F["Owner's ticked folders only"]
-    F --> P["Streaming parse: xlsx, docx, pdf, OCR, zip"]
-    P --> G{"Pre-flight checks"}
-    G -->|"ID / phone / bank card"| X["exclude, recorded in receipt"]
-    G -->|"repost markers"| X
-    G -->|"unparsed"| X
-    G -->|"clean"| T["Extract rows by template"]
-    T --> A["Aggregate by dimension, k-anonymity drops small groups"]
-    A --> R["Build receipt: source sha256 + params + model"]
-    R --> PR["Product draft, then list or join"]
-```
+![Processing pipeline](figures/en-05.svg)
 
-*Figure 9. Seller-side pipeline. Products contain only aggregates, so listing cannot leak individual records.*
+*Figure 5. Seller-side pipeline. Products contain only aggregates, so listing cannot leak individual records.*
 
 Four built-in templates (commute timeliness, home-recipe library, pet-feeding records, reading notes) are fixed so that products stay comparable and verifiable; the natural-language layer only maps requests onto them.
 
 ### 4.2 Collaboration protocol
 
-```mermaid
-flowchart LR
-    C["create: code + password"] --> J["join by code, password verified with BCrypt"]
-    J --> AGG["member aggregates locally"]
-    AGG --> MERGE["union of group statistics, no raw rows"]
-    MERGE --> GROW["product grows: groups up, sources up"]
-    GROW --> PUB["initiator publishes"]
-    GROW -.->|"member adds folders"| AGG
-```
+![Collaboration state machine](figures/en-06.svg)
 
-*Figure 10. Collaboration state machine. Publishing is terminal: once published, joining is refused.*
+*Figure 6. Collaboration state machine. Publishing is terminal: once published, joining is refused.*
 
 Implementation notes worth showing at the booth:
 
@@ -267,33 +137,7 @@ Implementation notes worth showing at the booth:
 - **Evidence grounding.** Model-returned evidence is substring-checked against parsed text; unverifiable quotes are replaced by a local snippet.
 - **Secrets never leave the server.** Provider keys are AES-256-GCM encrypted under a master key outside the database and version control; collaboration password hashes are stripped from every response through a dedicated view object, asserted by an automated test.
 
-### 4.3 Deployment for the conference booth
-
-```mermaid
-flowchart LR
-    L1["Laptop A: demo server, JDK 17+, 8 GB"] -->|"localhost:8080"| S["Spring Boot + static SPA"]
-    S --> PG[("PostgreSQL 18 on localhost:5432")]
-    L2["Laptop B: audience screen"] -->|"same Wi-Fi, http://a.b.c.d:8080"| S
-    S -.->|"optional"| NET["Internet: DeepSeek API"]
-    S -.->|"offline mode"| MOCK["local mock provider :9099"]
-```
-
-*Figure 11. Two-laptop booth setup; the dashed path removes any network dependency.*
-
-| Item | Requirement | Notes |
-| --- | --- | --- |
-| Demo server | 1 laptop, 4 vCPU / 8 GB RAM, JDK 17+, PostgreSQL 16+ | all on localhost; about 1.3 GB disk with seed data |
-| Client | modern Chromium-based browser, at least 1280x800 (1440x900 recommended) | no plugin, no install |
-| Network | **optional** | with Internet: real DeepSeek endpoint; without: bundled OpenAI-compatible mock on port 9099 |
-| Ports | 8080 (app), 5432 (DB), 9099 (mock, optional) | loopback by default; opened only when sharing to Laptop B |
-| Startup | `createdb` then `kotlin.bat run` (or the packaged JAR) | Flyway creates 19 tables; the seeder creates 5 accounts, 13 sample files, 2 listings, 1 demand and 1 two-member collaboration |
-| Reset between visitors | one SQL script clearing tasks, results and collaborations | under 1 s; accounts and files kept |
-| Accounts | seller_a/sell1234, seller_b/sell1234, buyer/buy12345, demo/demo1234, admin/admin123 | printed on a booth card |
-| Fallbacks | if the network dies mid-demo the router fails over to the mock in under 1 s and the UI labels judgments as local rules | rehearsed |
-
-**Booth script (90 s):** describe a product (S1), watch the build (S2), join a joint project with the code handed to the visitor (S3), post a demand and show pushed reasons (S4). Delivery (S5) answers "and then what".
-
-### 4.4 Verification
+### 4.3 Verification
 
 Rather than comparative experiments we ship six scripted end-to-end suites a reviewer can run at the booth:
 
@@ -308,7 +152,7 @@ Rather than comparative experiments we ship six scripted end-to-end suites a rev
 
 Measured on the demo laptop with a cloud LLM: a 5-row spreadsheet becomes a product in **4.5 s** end-to-end (parse, aggregate, describe); a joint product shows its first growth within one second of the second member joining.
 
-### 4.5 Ethics, privacy and compliance
+### 4.4 Ethics, privacy and compliance
 
 - **Explicit, minimal authorization.** Only ticked folders are opened; scope is persisted per member and echoed in the collaboration view. Registration is self-service and all demo data is synthetic.
 - **Aggregation by construction.** Products contain group-level statistics only, with k-anonymity (default k = 3) dropping sparse groups. Individual rows are never written to a product, a listing, or a collaboration payload.
@@ -351,16 +195,3 @@ AgentCloudDisk shows that an ordinary cloud drive can participate in a data-elem
 [11] Yunfan Gao, Yun Xiong, Xinyu Gao, et al. 2023. *Retrieval-Augmented Generation for Large Language Models: A Survey.* arXiv:2312.10997.
 
 [12] Zicun Cong, Xuan Luo, Jian Pei, et al. 2021. *Data Pricing in Machine Learning Pipelines.* arXiv:2108.07915.
-
----
-
-### Appendix A — Demo artifact checklist
-
-| Item | Status |
-| --- | --- |
-| Runnable system (backend + frontend, single port) | yes |
-| Seeded dataset (13 real files: DOCX/XLSX/PNG/ZIP/PDF) + 2 listings + 1 demand + 1 two-member collaboration | yes |
-| Offline mode (local OpenAI-compatible mock) | yes |
-| One-command reset between visitors | yes |
-| Six executable test suites printing pass/fail | yes |
-| Screenshots and this paper (EN/ZH) | yes |
