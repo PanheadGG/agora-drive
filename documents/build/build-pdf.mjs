@@ -1,0 +1,267 @@
+// Markdown → 双栏 HTML → Chrome printToPDF
+// 用法: node build-pdf.mjs <in.md> <out.pdf> [--lang zh|en]
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { marked } from 'marked'
+
+const [, , inMd, outPdf, ...rest] = process.argv
+if (!inMd || !outPdf) {
+  console.error('usage: node build-pdf.mjs <in.md> <out.pdf> [--lang zh|en]')
+  process.exit(1)
+}
+const langFlag = rest.indexOf('--lang')
+const lang = langFlag >= 0 ? rest[langFlag + 1] : 'en'
+const src = resolve(inMd)
+const out = resolve(outPdf)
+mkdirSync(dirname(out), { recursive: true })
+
+const md = readFileSync(src, 'utf8')
+
+// ---------- 1. mermaid 块抽出并占位 ----------
+const mermaidBlocks = []
+const withPlaceholders = md.replace(/^```mermaid\n([\s\S]*?)^```$/gm, (_all, code) => {
+  mermaidBlocks.push(code.trim())
+  return '\nMERMAIDPLACEHOLDER' + (mermaidBlocks.length - 1) + 'X\n'
+})
+
+// ---------- 2. Markdown → HTML ----------
+marked.setOptions({ gfm: true, breaks: false })
+let html = marked.parse(withPlaceholders)
+html = html.replace(/<p>\s*MERMAIDPLACEHOLDER(\d+)X\s*<\/p>/g, (_m, i) => '\n<div class="figure mermaid-box" data-idx="' + i + '"></div>\n')
+
+// ---------- 3. 图片：SVG 直接内联（自包含，避免 <img> 对 SVG 的兼容问题），其余转绝对路径 ----------
+const mdDir = dirname(src)
+html = html.replace(/(<img[^>]*?src=")([^"]+)(")/g, (_m, pre, s, post) => {
+  if (/^(https?:|data:|file:)/i.test(s)) return _m
+  const abs = resolve(mdDir, s).replace(/\\/g, '/')
+  if (/\.svg$/i.test(abs)) {
+    // 内联 SVG：HTML 自包含，且不受 <img> 对 SVG 的渲染差异影响
+    try {
+      const svg = readFileSync(abs, 'utf8')
+        .replace(/<\?xml[^>]*\?>/, '')
+        .replace(/<!DOCTYPE[^>]*>/, '')
+        .trim()
+      return pre + 'data:image/svg+xml;utf8,' + encodeURIComponent(svg) + post
+    } catch (e) {
+      console.error('svg inline failed: ' + abs + ' :: ' + e.message)
+      return pre + 'file:///' + abs + post
+    }
+  }
+  return pre + 'file:///' + abs + post
+})
+// markdown 的 ![]() 会变成裸 <p><img></p>，必须包进 .figure 才能套用尺寸约束
+html = html.replace(/<p>\s*(<img[^>]*>)\s*<\/p>/g, '<div class="figure">$1</div>')
+// 窄高图（宽高比 < 1.1）等比缩小后字会太小，额外加 class 放大显示
+html = html.replace(/<img([^>]*?)src="(data:image\/svg[^"]+)"/g, (m, pre, data) => {
+  try {
+    const svg = decodeURIComponent(data.replace('data:image/svg+xml;utf8,', ''))
+    const vb = (svg.match(/viewBox="([^"]+)"/) || [])[1] || ''
+    const p = vb.split(/\s+/).map(Number)
+    const ratio = (p[2] || 1) / (p[3] || 1)
+    if (ratio < 1.15) return '<img class="tall"' + pre + 'src="' + data + '"'
+  } catch (e) { /* 忽略 */ }
+  return m
+})
+// 图注：整段只有一个 <em>，且以「图 N」/「Figure N」开头
+html = html.replace(/<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/g, (m, inner) => {
+  if (!/^\s*(图|Figure)\s*\d+/.test(inner)) return m
+  return '<p class="caption"><em>' + inner + '</em></p>'
+})
+
+// ---------- 4. 抽题目区 ----------
+const h1m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)
+const titleHtml = h1m ? h1m[1].replace(/<[^>]+>/g, '').trim() : 'Demo Paper'
+html = html.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, '')
+
+// 开头的头部区：**Demo Paper …** 段落与 blockquote（作者/双盲声明）都属于题头，
+// 顺序可能互换，所以在前 600 字符内按出现顺序把它们都抽走
+let headerHtml = ''
+{
+  const headRe = /(<p>\s*<strong>(?:Demo Paper|演示论文)[\s\S]*?<\/strong>\s*<\/p>)|(<blockquote>[\s\S]*?<\/blockquote>)/g
+  const head = html.slice(0, 600)
+  const parts = []
+  let m
+  while ((m = headRe.exec(head))) parts.push(m[0])
+  for (const p of parts) {
+    const isQuote = p.indexOf('<blockquote>') === 0;
+    headerHtml += isQuote ? p.slice(12, p.length - 13) : p;
+    html = html.replace(p, '');
+  }
+}
+// 第一个 <hr> 之前若是段落/关键词，也并入题头
+const kwSplit = html.indexOf('<hr>')
+if (kwSplit > 0 && kwSplit < 900) {
+  headerHtml += html.slice(0, kwSplit)
+  html = html.slice(kwSplit + 4)
+}
+html = html.replace(/^\s*<hr>\s*/, '')
+
+// ACM 前置区：CCS Concepts / Keywords / ACM Reference Format 用小型区块放在首栏开头
+let frontHtml = ''
+const fmNames = ['CCS Concepts', 'Keywords', 'ACM Reference Format']
+for (const name of fmNames) {
+  const re = new RegExp('<h2[^>]*>\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*<\\/h2>([\\s\\S]*?)(?=<h[23][^>]*>|$)', 'i')
+  const m = html.match(re)
+  if (!m) continue
+  frontHtml += '<h2>' + name + '</h2>' + m[1]
+  html = html.replace(re, '')
+}
+if (frontHtml) frontHtml = '<div class="frontmatter">' + frontHtml + '</div>'
+
+// 题头里的 **Demo Paper — ...** / **演示论文 — ...** 拎出来当 venue 行
+let venue = ''
+headerHtml = headerHtml.replace(/<p>\s*<strong>((?:Demo Paper|演示论文)[\s\S]*?)<\/strong>\s*<\/p>/, (_m, v) => {
+  venue = v.replace(/<[^>]+>/g, '')
+  return ''
+})
+// 有些版本 venue 行落在 titleblock 之外（在 body 开头），也一并提出来
+html = html.replace(/^\s*<p>\s*<strong>((?:Demo Paper|演示论文)[\s\S]*?)<\/strong>\s*<\/p>/, (_m, v) => {
+  if (!venue) venue = v.replace(/<[^>]+>/g, '')
+  return ''
+})
+headerHtml = headerHtml.replace(/^\s*<hr>\s*$/, '')
+
+// ---------- 5. 样式 ----------
+const FONT = lang === 'zh'
+  ? "'Source Han Serif SC','Noto Serif CJK SC','SimSun','Songti SC',serif"
+  : "'Linux Libertine','Times New Roman',Times,serif"
+const SANS = lang === 'zh'
+  ? "'Source Han Sans SC','Microsoft YaHei','PingFang SC',sans-serif"
+  : "'Inter','Helvetica Neue',Arial,sans-serif"
+
+const css = `
+@page { size: A4; margin: 14mm 13mm 15mm 13mm; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0; font-family: ${FONT}; font-size: ${lang === 'zh' ? '8.8pt' : '8.5pt'}; line-height: 1.42;
+  color: #111; text-align: justify; hyphens: auto; word-break: break-word;
+}
+.titleblock {
+  text-align: center; margin: 0 0 9pt; padding-bottom: 7pt;
+  border-bottom: 0.6pt solid #999;
+}
+.titleblock h1 { font-family: ${SANS}; font-size: 16.5pt; line-height: 1.2; margin: 0 0 7pt; font-weight: 700; }
+.titleblock .meta { font-size: 8.4pt; line-height: 1.55; color: #333; }
+.titleblock .meta p { margin: 0 0 2pt; text-align: center; }
+/* 摘要标题若被顶栏吸收，这里保证不误用居中 */
+.titleblock .meta .caption { text-align: center; }
+.titleblock .venue { font-size: 8.2pt; color: #444; margin: 0 0 5pt; font-weight: 600; letter-spacing: 0.3px; }
+
+.body { column-count: 2; column-gap: 7mm; column-fill: auto; }
+
+h2 { font-family: ${SANS}; font-size: 9.8pt; font-weight: 700; margin: 9pt 0 3.5pt; break-after: avoid; }
+h3 { font-family: ${SANS}; font-size: 8.8pt; font-weight: 700; margin: 7pt 0 2.5pt; break-after: avoid; }
+h4 { font-family: ${SANS}; font-size: 8.4pt; font-weight: 700; margin: 6pt 0 2pt; break-after: avoid; }
+
+/* ACM 前置区：CCS Concepts / Keywords / ACM Reference Format 用小型标题 */
+.frontmatter { font-size: 7.8pt; line-height: 1.34; color: #1a1a1a; margin: 0 0 7pt; }
+.frontmatter h2 {
+  font-family: ${SANS}; font-size: 8.2pt; font-weight: 700;
+  margin: 6pt 0 2pt; break-after: avoid;
+}
+.frontmatter h2:first-child { margin-top: 0; }
+.frontmatter p { margin: 0 0 2.4pt; }
+.frontmatter ul { margin: 0 0 2.4pt; padding-left: 10pt; }
+.frontmatter li { margin: 0 0 1pt; }
+.frontmatter code { font-size: 7pt; }
+p { margin: 0 0 3.8pt; orphans: 2; widows: 2; }
+ul, ol { margin: 0 0 4pt; padding-left: 11pt; }
+li { margin: 0 0 2pt; }
+strong { font-weight: 700; }
+a { color: #0b4fa8; text-decoration: none; }
+hr { display: none; }
+
+blockquote {
+  margin: 0 0 4pt; padding: 2.5pt 5pt; border-left: 2pt solid #c8d4e4;
+  background: #f6f8fb; font-size: 8pt; color: #333;
+}
+blockquote p { margin: 0 0 1.5pt; }
+
+code { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 7.5pt; background: #f2f4f7; padding: 0 1.5pt; border-radius: 2px; }
+pre {
+  background: #f7f8fa; border: 0.4pt solid #e3e6ea; border-radius: 3px;
+  padding: 4pt 5pt; overflow: hidden; break-inside: avoid;
+  font-size: 7.2pt; line-height: 1.32; margin: 0 0 4.5pt;
+}
+pre code { background: none; padding: 0; font-size: 7.2pt; }
+
+table { width: 100%; border-collapse: collapse; font-size: 7.4pt; margin: 0 0 5pt; break-inside: avoid; table-layout: fixed; }
+th, td {
+  border: 0.4pt solid #d7dbe0; padding: 1.6pt 3pt; text-align: left; vertical-align: top;
+  word-break: normal; overflow-wrap: break-word; hyphens: none;
+}
+th { background: #eef2f7; font-weight: 700; font-family: ${SANS}; font-size: 7.2pt; }
+/* 三列表格：套件名给足宽度，不换行；覆盖范围居中列；检查项窄列右对齐 */
+table th:first-child, table td:first-child { width: 34%; }
+table th:nth-child(2), table td:nth-child(2) { width: 50%; }
+table th:last-child, table td:last-child { width: 16%; text-align: right; }
+table td:first-child code { white-space: nowrap; }
+/* 表头行不换行，避免每列标题占两行 */
+table th { white-space: nowrap; }
+
+/* 图：限制高度，避免截图撑爆版面 */
+.figure { break-inside: avoid; page-break-inside: avoid; margin: 5pt 0 2pt; text-align: center; }
+/* 截图默认按栏宽显示，但限制高度，避免一张图占掉半页 */
+.figure img {
+  display: block; margin: 0 auto;
+  max-width: 100%; max-height: 96mm; width: auto; height: auto;
+  border: none;
+}
+/* SVG 矢量图：撑满栏宽，同时限制高度避免独占一栏 */
+.figure img[src^="data:image/svg"] {
+  width: 100%; max-width: 100%; max-height: 62mm;
+  border: none; background: none;
+}
+/* 窄高图放不下整栏高度时，允许略微超出栏宽居中，保证字号可读 */
+.figure img.tall {
+  width: 108% !important;
+  max-width: 108% !important;
+  margin-left: -4% !important;
+}
+.mermaid-box { min-height: 20pt; }
+/* 流程图尽量撑满栏宽 */
+.mermaid-box svg {
+  display: block; margin: 0 auto;
+  width: 100% !important; max-width: 100% !important;
+  height: auto !important; max-height: 76mm;
+}
+
+/* 图注：只对「整段就是一个 em」的段落生效（参考文献里的 em 在句中，不受影响） */
+p.caption { font-size: 7.4pt; line-height: 1.35; text-align: center; color: #333; margin: 0 0 6pt; }
+
+/* 表格单元格内的截图：强制限高，避免撑爆版面 */
+td img, th img {
+  display: block; margin: 0 auto;
+  max-width: 100% !important; max-height: 40mm !important;
+  width: auto !important; height: auto !important;
+}
+`
+
+// ---------- 6. HTML ----------
+// mermaid 必须用绝对 file:// 路径：HTML 与 node_modules 不在同一目录
+const MERMAID_JS = 'file:///' + resolve('node_modules/mermaid/dist/mermaid.min.js').replace(/\\/g, '/')
+const htmlDoc = `<!doctype html>
+<html lang="${lang}">
+<head><meta charset="utf-8"><title>${titleHtml}</title><style>${css}</style></head>
+<body>
+<script id="mermaid-src" type="application/json">${JSON.stringify(mermaidBlocks)}</script>
+<div class="titleblock">
+  <h1>${titleHtml}</h1>
+  ${venue ? '<div class="venue">' + venue + '</div>' : ''}
+  <div class="meta">${headerHtml}</div>
+</div>
+<div class="body">
+${frontHtml}
+${html}
+</div>
+${mermaidBlocks.length ? `<script src="${MERMAID_JS}"></script>` : ""}
+
+</body></html>`
+
+const htmlPath = out.replace(/\.pdf$/i, '.html')
+writeFileSync(htmlPath, htmlDoc, 'utf8')
+console.log('HTML: ' + htmlPath)
+console.log('title: ' + titleHtml)
+console.log('mermaid blocks: ' + mermaidBlocks.length)
+console.log('header chars: ' + headerHtml.length + ', venue: ' + JSON.stringify(venue.slice(0, 60)))
