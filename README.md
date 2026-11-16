@@ -1,4 +1,4 @@
-# AgentCloudDisk · 数据卖方 Agent + 数据交易市场（WWW Demo）
+# AgoraDrive · 数据卖方 Agent + 数据交易市场
 
 > 重点在 **Agent 这一层**：Agent 如何在卖方网盘内把原始数据加工成可交易的数据产品。交易/交付只做最小闭环。
 
@@ -33,6 +33,10 @@ flowchart TD
     AG --> R["构建凭证<br/>原料 sha256 + 参数 + 模型版本"]
     R --> PR["数据产品（待上架）"]
 ```
+
+整条链路的完整架构图（drawio 中间文件 + 导出图，中英双版）见 [`docs/architecture/`](docs/architecture/README.md)。
+
+Full architecture diagram (drawio source + PNG export, Chinese and English) lives in [`docs/architecture/`](docs/architecture/README.md).
 
 四个内置模板：通勤时效统计、家常菜谱库、宠物喂养记录、读书笔记主题。
 

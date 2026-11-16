@@ -93,7 +93,6 @@ function renderShell() {
     <span class="legend-item"><i class="dot prov"></i>provenance — the receipt</span>
   </div>
   <main class="page">${viewFor(state.view)}</main>
-  <p class="footnote">Static demonstration page for the WWW '26 demo paper. Every figure shown is from a real run of the system; interactions are scripted locally and need no network.</p>
   `
 }
 

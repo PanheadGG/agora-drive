@@ -18,9 +18,7 @@ docs/www2026/_tmp/render/
 Thumbs.db
 .DS_Store
 
-# PDF 构建过程的浏览器配置
-docs/www2026/.chrome-pdf-profile/
 
-# documents 构建中间产物
-documents/build/node_modules/
-documents/.chrome-pdf-profile/
+documents/
+
+scripts/

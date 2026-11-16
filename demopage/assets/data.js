@@ -78,8 +78,6 @@ export const BUILD_EVENTS = [
   { tag: 'ok', name: 'line-notes.docx', method: 'StAX' },
   { tag: 'warn', name: 'vendor-contract.docx', method: 'excluded: ID number' },
   { tag: 'warn', name: 'invoice-scan.pdf', method: 'excluded: bank card' },
-  { tag: 'ok', name: 'feeding.xlsx', method: 'streamed Excel' },
-  { tag: 'skip', name: 'vet-scan.png', method: 'skipped: no matching rows' },
   { tag: 'info', name: 'aggregate', method: 'k = 3, 3 groups kept, 1 dropped' },
 ]
 
